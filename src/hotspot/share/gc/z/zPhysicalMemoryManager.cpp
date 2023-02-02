@@ -22,10 +22,12 @@
  */
 
 #include "gc/shared/gcLogPrecious.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zGranuleMap.inline.hpp"
+#include "gc/z/zInitialize.hpp"
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zNMT.hpp"
@@ -84,8 +86,8 @@ bool ZPhysicalMemoryManager::is_initialized() const {
   return _backing.is_initialized();
 }
 
-void ZPhysicalMemoryManager::warn_commit_limits(size_t max_capacity) const {
-  _backing.warn_commit_limits(max_capacity);
+void ZPhysicalMemoryManager::warn_commit_limits(size_t expected_capacity, size_t max_capacity) const {
+  _backing.warn_commit_limits(expected_capacity, max_capacity);
 }
 
 void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max_capacity) {
@@ -109,6 +111,12 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   // and then uncommitting a granule.
   const ZVirtualMemory vmem(zoffset(0), ZGranuleSize);
   if (!commit(vmem, 0) || !uncommit(vmem)) {
+    if (ZAdaptiveHeap::can_adapt()) {
+      ZInitialize::error("Uncommit not supported with the current configuration. "
+                         "Either use -XX:ZGCPressure=0.0 to run without adaptive heap sizing, "
+                         "or -XX:-ZUncommit to run adaptive heap sizing without uncommit.");
+      return;
+    }
     log_info_p(gc, init)("Uncommit: Implicitly Disabled (Not supported by operating system)");
     FLAG_SET_ERGO(ZUncommit, false);
     return;
@@ -390,4 +398,10 @@ void ZPhysicalMemoryManager::restore_segments(const ZArraySlice<const ZVirtualMe
   }
 
   assert(stash_index == stash.length(), "Must have emptied the stash");
+}
+
+void ZPhysicalMemoryManager::collapse(const ZVirtualMemory& vmem) const {
+  const zaddress_unsafe addr = ZOffset::address_unsafe(vmem.start());
+
+  _backing.collapse(addr, vmem.size());
 }

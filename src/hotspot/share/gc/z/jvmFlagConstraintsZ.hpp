@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -19,27 +19,22 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
+ *
  */
 
-#ifndef SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
-#define SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
+#ifndef SHARE_GC_Z_JVMFLAGCONSTRAINTSZ_HPP
+#define SHARE_GC_Z_JVMFLAGCONSTRAINTSZ_HPP
 
-#include "gc/z/zLargePages.hpp"
+#include "runtime/flags/jvmFlag.hpp"
+#include "utilities/globalDefinitions.hpp"
 
-inline bool ZLargePages::is_enabled() {
-  return _state != Disabled;
-}
+#define Z_GC_CONSTRAINTS(f)                                                    \
+                                                                               \
+  /* Adaptive Heap Sizing Constraints */                                       \
+  f(double, ZGCPressureConstraintFunc)                                         \
+  /* */
 
-inline bool ZLargePages::is_explicit() {
-  return _state == Explicit;
-}
+Z_GC_CONSTRAINTS(DECLARE_CONSTRAINT)
 
-inline bool ZLargePages::is_transparent() {
-  return _state == Transparent;
-}
 
-inline bool ZLargePages::is_collapse() {
-  return _state == Collapse;
-}
-
-#endif // SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
+#endif // SHARE_GC_Z_JVMFLAGCONSTRAINTSZ_HPP

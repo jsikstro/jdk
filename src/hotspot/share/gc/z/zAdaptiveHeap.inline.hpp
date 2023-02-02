@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,25 +21,21 @@
  * questions.
  */
 
-#ifndef SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
-#define SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
+#ifndef SHARE_GC_Z_ZADAPTIVEHEAP_INLINE_HPP
+#define SHARE_GC_Z_ZADAPTIVEHEAP_INLINE_HPP
 
-#include "gc/z/zLargePages.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
 
-inline bool ZLargePages::is_enabled() {
-  return _state != Disabled;
+
+inline bool ZAdaptiveHeap::explicit_max_capacity() {
+  precond(_initialized);
+  return _explicit_max_capacity;
 }
 
-inline bool ZLargePages::is_explicit() {
-  return _state == Explicit;
+inline bool ZAdaptiveHeap::can_adapt() {
+  precond(_initialized);
+  return _can_adapt;
 }
 
-inline bool ZLargePages::is_transparent() {
-  return _state == Transparent;
-}
 
-inline bool ZLargePages::is_collapse() {
-  return _state == Collapse;
-}
-
-#endif // SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
+#endif // SHARE_GC_Z_ZADAPTIVEHEAP_INLINE_HPP

@@ -81,10 +81,12 @@
 #include "utilities/permitForbiddenFunctions.hpp"
 #include "utilities/powerOfTwo.hpp"
 
+#ifdef __APPLE__
+# include "os_bsd.hpp"
+#endif
 #ifdef LINUX
 #include "osContainer_linux.hpp"
 #endif
-
 #ifndef _WINDOWS
 # include <poll.h>
 #endif
@@ -2223,7 +2225,6 @@ bool os::used_memory(size_t& value) {
   value = phys_mem - avail_mem;
   return true;
 }
-
 bool os::compressed_memory(size_t &value) {
 #ifdef __APPLE__
   return os::Bsd::compressed_memory(value);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -19,27 +19,33 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
+ *
  */
 
-#ifndef SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
-#define SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP
+#include "gc/z/jvmFlagConstraintsZ.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
+#include "runtime/flags/jvmFlag.hpp"
 
-#include "gc/z/zLargePages.hpp"
+JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
+  if (value < 0.0) {
+    JVMFlag::printError(verbose,
+                        "ZGCPressureConstraint (%f) must be greater than "
+                        "or equal to 0.0.\n",
+                        value);
+    return JVMFlag::Error::VIOLATES_CONSTRAINT;
+  }
 
-inline bool ZLargePages::is_enabled() {
-  return _state != Disabled;
+  if (ZAdaptiveHeap::can_adapt() && value == 0.0) {
+    JVMFlag::printError(verbose,
+                        "Cannot dynamically switch ZGCPressure off.\n");
+    return JVMFlag::Error::VIOLATES_CONSTRAINT;
+  }
+
+  if (!ZAdaptiveHeap::can_adapt() && value != 0.0) {
+    JVMFlag::printError(verbose,
+                        "Cannot dynamically switch ZGCPressure on.\n");
+    return JVMFlag::Error::VIOLATES_CONSTRAINT;
+  }
+
+  return JVMFlag::Error::SUCCESS;
 }
-
-inline bool ZLargePages::is_explicit() {
-  return _state == Explicit;
-}
-
-inline bool ZLargePages::is_transparent() {
-  return _state == Transparent;
-}
-
-inline bool ZLargePages::is_collapse() {
-  return _state == Collapse;
-}
-
-#endif // SHARE_GC_Z_ZLARGEPAGES_INLINE_HPP

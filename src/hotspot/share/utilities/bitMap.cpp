@@ -62,28 +62,33 @@ void GrowableBitMap<BitMapWithAllocator>::initialize(idx_t size_in_bits, bool cl
 
 template <class BitMapWithAllocator>
 void GrowableBitMap<BitMapWithAllocator>::reinitialize(idx_t new_size_in_bits, bool clear) {
-  // Remove previous bits - no need to clear
-  resize(0, false /* clear */);
+  // Remove previous bits
+  free_backing();
 
   initialize(new_size_in_bits, clear);
 }
 
 template <class BitMapWithAllocator>
-void GrowableBitMap<BitMapWithAllocator>::resize(idx_t new_size_in_bits, bool clear) {
-  const size_t old_size_in_bits = size();
-  bm_word_t* const old_map = map();
+void GrowableBitMap<BitMapWithAllocator>::free_backing() {
+  BitMapWithAllocator* derived = static_cast<BitMapWithAllocator*>(this);
+  derived->free(map(), calc_size_in_words(size()));
+  update(nullptr, 0);
+}
 
-  const size_t old_size_in_words = calc_size_in_words(size());
+template <class BitMapWithAllocator>
+void GrowableBitMap<BitMapWithAllocator>::resize(idx_t new_size_in_bits, bool clear) {
   const size_t new_size_in_words = calc_size_in_words(new_size_in_bits);
 
-  BitMapWithAllocator* derived = static_cast<BitMapWithAllocator*>(this);
-
   if (new_size_in_words == 0) {
-    derived->free(old_map, old_size_in_words);
-    update(nullptr, 0);
+    free_backing();
     return;
   }
 
+  const size_t old_size_in_bits = size();
+  const size_t old_size_in_words = calc_size_in_words(size());
+  bm_word_t* const old_map = map();
+
+  BitMapWithAllocator* derived = static_cast<BitMapWithAllocator*>(this);
 
   bm_word_t* map = derived->reallocate(old_map, old_size_in_words, new_size_in_words);
   if (clear && (new_size_in_bits > old_size_in_bits)) {

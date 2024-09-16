@@ -420,8 +420,8 @@ void BlockListBuilder::mark_loops() {
   assert(_next_block_number >= 0, "invalid block numbers");
 
   // Remove dangling Resource pointers before the ResourceMark goes out-of-scope.
-  _active.resize(0);
-  _visited.resize(0);
+  _active.free_backing();
+  _visited.free_backing();
   _loop_map.clear();
 }
 

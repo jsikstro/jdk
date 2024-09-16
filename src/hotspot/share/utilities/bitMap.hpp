@@ -590,6 +590,8 @@ class GrowableBitMap : public BitMap {
 
   // Resize the backing bitmap memory.
   //
+  // Free the backing memory. Allocated again via initialize.
+  void free_backing();
   // Old bits are transferred to the new memory
   // and the extended memory is optionally cleared.
   void resize(idx_t new_size_in_bits, bool clear = true);

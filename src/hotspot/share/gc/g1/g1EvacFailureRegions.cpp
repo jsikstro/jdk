@@ -52,9 +52,9 @@ void G1EvacFailureRegions::pre_collection(uint max_regions) {
 }
 
 void G1EvacFailureRegions::post_collection() {
-  _regions_evac_failed.resize(0);
-  _regions_pinned.resize(0);
-  _regions_alloc_failed.resize(0);
+  _regions_evac_failed.free_backing();
+  _regions_pinned.free_backing();
+  _regions_alloc_failed.free_backing();
 
   FREE_C_HEAP_ARRAY(uint, _evac_failed_regions);
   _evac_failed_regions = nullptr;

@@ -80,6 +80,49 @@ public:
     TreapNode* right() const { return _right; }
   };
 
+  template<bool Forward>
+  class NodeIteratorImpl : public StackObj {
+  private:
+    GrowableArrayCHeap<TreapNode*, mtNMT> _to_visit;
+    const Treap* const                    _tree;
+    TreapNode*                            _next;
+
+  public:
+    NodeIteratorImpl(const Treap* tree)
+    : _tree(tree) {
+      TreapNode* head = _tree->_root;
+      while (head != nullptr) {
+        _to_visit.push(head);
+        head = Forward ? head->left() : head->right();
+      }
+      _next = _to_visit.pop();
+    }
+
+    bool next(TreapNode** elem) {
+      if (_next == nullptr) {
+        return false;
+      }
+
+      *elem = _next;
+
+      // Start by adding all the left nodes from the other subtree onto the stack.
+      _next = Forward ? _next->right() : _next->left();
+      while (_next != nullptr) {
+        _to_visit.push(_next);
+        _next = Forward ? _next->left() : _next->right();
+      }
+
+      if (!_to_visit.is_empty()) {
+        _next = _to_visit.pop();
+      }
+
+      return true;
+    }
+  };
+
+  using InOrderIterator = NodeIteratorImpl<true /* Forward */>;
+  using InReverseOrderIterator = NodeIteratorImpl<false /* Forward */>;
+
 private:
   ALLOCATOR _allocator;
   TreapNode* _root;
@@ -307,16 +350,9 @@ public:
   // Visit all TreapNodes in ascending key order.
   template<typename F>
   void visit_in_order(F f) const {
-    GrowableArrayCHeap<TreapNode*, mtNMT> to_visit;
-    TreapNode* head = _root;
-    while (!to_visit.is_empty() || head != nullptr) {
-      while (head != nullptr) {
-        to_visit.push(head);
-        head = head->left();
-      }
-      head = to_visit.pop();
-      f(head);
-      head = head->right();
+    InOrderIterator iterator(this);
+    for (TreapNode* node; iterator.next(&node);) {
+      f(node);
     }
   }
 

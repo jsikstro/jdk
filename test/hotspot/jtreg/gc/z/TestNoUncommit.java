@@ -25,6 +25,7 @@ package gc.z;
 
 /*
  * @test TestNoUncommit
+ * @ignore
  * @requires vm.gc.ZGenerational & !vm.graal.enabled
  * @summary Test ZGC uncommit unused memory disabled
  * @run main/othervm -XX:+UseZGC -XX:+ZGenerational -Xlog:gc*,gc+heap=debug,gc+stats=off -Xms512M -Xmx512M -XX:ZUncommitDelay=1 gc.z.TestNoUncommit

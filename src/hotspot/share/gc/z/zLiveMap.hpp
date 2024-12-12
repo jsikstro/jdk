@@ -77,11 +77,11 @@ private:
   void iterate_segment(BitMap::idx_t segment, Function function);
 
 public:
-  ZLiveMap(uint32_t size);
+  ZLiveMap(size_t size);
   ZLiveMap(const ZLiveMap& other) = delete;
 
   void reset();
-  void resize(uint32_t size);
+  void resize(size_t size);
 
   bool is_marked(ZGenerationId id) const;
 

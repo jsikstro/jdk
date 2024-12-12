@@ -68,7 +68,7 @@ inline const char* ZPage::type_to_string() const {
   }
 }
 
-inline uint32_t ZPage::object_max_count() const {
+inline size_t ZPage::object_max_count() const {
   switch (type()) {
   case ZPageType::large:
     // A large page can only contain a single
@@ -76,7 +76,7 @@ inline uint32_t ZPage::object_max_count() const {
     return 1;
 
   default:
-    return (uint32_t)(size() >> object_alignment_shift());
+    return size() >> object_alignment_shift();
   }
 }
 

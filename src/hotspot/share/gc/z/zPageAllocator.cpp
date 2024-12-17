@@ -642,6 +642,12 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZV
   commit_physical(&to_be_committed_vmem);
   committed_vmem.extend(to_be_committed_vmem.size());
 
+  // We have not managed to commit any memory at all, meaning this allocation only
+  // increased capacity and did not harvest anything.
+  if (committed_vmem.size() == 0)  {
+    return false;
+  }
+
   // Sort the backing memory before mapping
   qsort(_physical_mappings.get_addr(committed_vmem.start()), committed_vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
         [](const void* a, const void* b) -> int {

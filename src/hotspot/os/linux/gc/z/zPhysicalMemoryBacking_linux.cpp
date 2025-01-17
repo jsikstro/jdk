@@ -628,30 +628,11 @@ retry:
   return true;
 }
 
-static int offset_to_node(zoffset offset) {
-  const GrowableArray<int>* mapping = os::Linux::numa_nindex_to_node();
-  const size_t nindex = (untype(offset) >> ZGranuleSizeShift) % mapping->length();
-  return mapping->at((int)nindex);
-}
+size_t ZPhysicalMemoryBacking::commit_numa_preferred(zoffset offset, size_t length, int nid) const {
+  // Setup NUMA policy to allocate memory from a preferred node
+  os::Linux::numa_set_preferred(nid);
 
-size_t ZPhysicalMemoryBacking::commit_numa_interleaved(zoffset offset, size_t length) const {
-  size_t committed = 0;
-
-  // Commit one granule at a time, so that each granule
-  // can be allocated from a different preferred node.
-  while (committed < length) {
-    const zoffset granule_offset = offset + committed;
-
-    // Setup NUMA policy to allocate memory from a preferred node
-    os::Linux::numa_set_preferred(offset_to_node(granule_offset));
-
-    if (!commit_inner(granule_offset, ZGranuleSize)) {
-      // Failed
-      break;
-    }
-
-    committed += ZGranuleSize;
-  }
+  size_t committed = commit_default(offset, length);
 
   // Restore NUMA policy
   os::Linux::numa_set_preferred(-1);
@@ -687,11 +668,11 @@ size_t ZPhysicalMemoryBacking::commit_default(zoffset offset, size_t length) con
   }
 }
 
-size_t ZPhysicalMemoryBacking::commit(zoffset offset, size_t length) const {
-  if (ZNUMA::is_enabled() && !ZLargePages::is_explicit()) {
-    // To get granule-level NUMA interleaving when using non-large pages,
-    // we must explicitly interleave the memory at commit/fallocate time.
-    return commit_numa_interleaved(offset, length);
+size_t ZPhysicalMemoryBacking::commit(zoffset offset, size_t length, int nid) const {
+  if (ZNUMA::is_enabled()) {
+    // We want to prefer allocating on a specific NUMA node. nid = -1 means allocate
+    // on the local node.
+    return commit_numa_preferred(offset, length, nid);
   }
 
   return commit_default(offset, length);

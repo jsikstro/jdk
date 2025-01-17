@@ -399,3 +399,7 @@ size_t ZMappedCache::remove_from_min(ZArray<ZVirtualMemory>* mappings, size_t ma
   }
   return remove_mappings(mappings, size);
 }
+
+size_t ZMappedCache::size() const {
+  return _size;
+}

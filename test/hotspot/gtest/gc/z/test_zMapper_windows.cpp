@@ -80,7 +80,7 @@ public:
     _vmm = (ZVirtualMemoryManager*)os::malloc(sizeof(ZVirtualMemoryManager), mtTest);
 
     // Construct its internal ZMemoryManager
-    _va = new (&_vmm->_manager) ZMemoryManager();
+    _va = new (&_vmm->_managers.get(0)) ZMemoryManager();
 
     // Reserve address space for the test
     if (!reserve_for_test()) {

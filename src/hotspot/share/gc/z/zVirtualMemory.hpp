@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zMemory.hpp"
+#include "gc/z/zValue.hpp"
 
 class ZVirtualMemory {
   friend class VMStructs;
@@ -55,9 +56,10 @@ class ZVirtualMemoryManager {
 private:
   static size_t calculate_min_range(size_t size);
 
-  ZMemoryManager _manager;
-  size_t         _reserved;
-  bool           _initialized;
+  ZPerNUMA<ZMemoryManager> _managers;
+  ZPerNUMA<ZVirtualMemory> _vmem_ranges;
+  size_t                   _reserved;
+  bool                     _initialized;
 
   // Platform specific implementation
   void pd_initialize_before_reserve();
@@ -71,6 +73,9 @@ private:
   size_t reserve_discontiguous(size_t size);
   bool reserve(size_t max_capacity);
 
+  void set_vmem_range_for_manager(int numa_id);
+  void initialize_managers(size_t size);
+
   DEBUG_ONLY(size_t force_reserve_discontiguous(size_t size);)
 
 public:
@@ -79,10 +84,12 @@ public:
   bool is_initialized() const;
 
   size_t reserved() const;
-  zoffset lowest_available_address() const;
+  zoffset lowest_available_address(int numa_id) const;
 
-  ZVirtualMemory alloc(size_t size, bool force_low_address);
+  ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);
   void free(const ZVirtualMemory& vmem);
+
+  int get_numa_id(const ZVirtualMemory& vmem) const;
 };
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_HPP

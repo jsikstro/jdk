@@ -69,8 +69,8 @@ inline size_t ZVirtualMemoryManager::reserved() const {
   return _reserved;
 }
 
-inline zoffset ZVirtualMemoryManager::lowest_available_address() const {
-  return _manager.peek_low_address();
+inline zoffset ZVirtualMemoryManager::lowest_available_address(int numa_id) const {
+  return _managers.get(numa_id).peek_low_address();
 }
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_INLINE_HPP

@@ -43,7 +43,6 @@ private:
   ZPageType            _type;
   ZGenerationId        _generation_id;
   ZPageAge             _age;
-  uint8_t              _numa_id;
   uint32_t             _seqnum;
   uint32_t             _seqnum_other;
   ZVirtualMemory       _virtual;
@@ -93,7 +92,6 @@ public:
 
   const ZVirtualMemory& virtual_memory() const;
 
-  uint8_t numa_id();
   ZPageAge age() const;
 
   uint32_t seqnum() const;

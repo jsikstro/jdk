@@ -27,13 +27,14 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zMemory.hpp"
+#include "gc/z/zValue.hpp"
 #include "memory/allocation.hpp"
 #include OS_HEADER(gc/z/zPhysicalMemoryBacking)
 
 class ZPhysicalMemoryManager {
 private:
-  ZPhysicalMemoryBacking _backing;
-  ZMemoryManager         _manager;
+  ZPhysicalMemoryBacking   _backing;
+  ZPerNUMA<ZMemoryManager> _managers;
 
 public:
   ZPhysicalMemoryManager(size_t max_capacity);
@@ -43,10 +44,10 @@ public:
   void warn_commit_limits(size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 
-  void alloc(zoffset* pmem, size_t size);
-  void free(const zoffset* pmem, size_t size);
+  void alloc(zoffset* pmem, size_t size, int nid = -1);
+  void free(const zoffset* pmem, size_t size, int nid);
 
-  size_t commit(const zoffset* pmem, size_t size);
+  size_t commit(const zoffset* pmem, size_t size, int nid = -1);
   size_t uncommit(const zoffset* pmem, size_t size);
 
   void map(zoffset offset, const zoffset* pmem, size_t size) const;

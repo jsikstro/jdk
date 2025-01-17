@@ -64,6 +64,7 @@ private:
 public:
   ZMappedCache();
 
+
   void insert_mapping(const ZVirtualMemory& vmem);
 
   size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);
@@ -73,6 +74,8 @@ public:
   size_t min() const;
   size_t reset_min();
   size_t remove_from_min(ZArray<ZVirtualMemory>* mappings, size_t max_size);
+
+  size_t size() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

@@ -33,7 +33,6 @@ ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem)
   : _type(type),
     _generation_id(ZGenerationId::young),
     _age(ZPageAge::eden),
-    _numa_id((uint8_t)-1),
     _seqnum(0),
     _seqnum_other(0),
     _virtual(vmem),

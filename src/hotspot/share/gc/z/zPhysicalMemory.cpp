@@ -31,6 +31,8 @@
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPhysicalMemory.inline.hpp"
+#include "gc/z/zValue.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
@@ -44,7 +46,13 @@
 ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
   : _backing(max_capacity) {
   // Make the whole range free
-  _manager.free(zoffset(0), max_capacity);
+  size_t numa_nodes = ZNUMA::count();
+  size_t capacity_per_manager = max_capacity / numa_nodes;
+
+  for (int numa_id = 0; numa_id < (int)numa_nodes; numa_id++) {
+    ZMemoryManager& manager = _managers.get(numa_id);
+    manager.free(zoffset(capacity_per_manager * numa_id), capacity_per_manager);
+  }
 }
 
 bool ZPhysicalMemoryManager::is_initialized() const {
@@ -85,13 +93,13 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   log_info_p(gc, init)("Uncommit Delay: " UINTX_FORMAT "s", ZUncommitDelay);
 }
 
-void ZPhysicalMemoryManager::alloc(zoffset* pmem, size_t size) {
+void ZPhysicalMemoryManager::alloc(zoffset* pmem, size_t size, int numa_id) {
   assert(is_aligned(size, ZGranuleSize), "Invalid size");
 
   // Allocate segments
   while (size > 0) {
     size_t allocated = 0;
-    const zoffset start = _manager.alloc_low_address_at_most(size, &allocated);
+    const zoffset start = _managers.get(numa_id).alloc_low_address_at_most(size, &allocated);
     assert(start != zoffset(UINTPTR_MAX), "Allocation should never fail");
     size -= allocated;
     for (zoffset offset = start; allocated != 0; offset += ZGranuleSize, allocated -= ZGranuleSize, pmem++) {
@@ -133,19 +141,19 @@ bool for_each_segment_apply(const zoffset* pmem, size_t num_granules, Function f
   return true;
 }
 
-void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size) {
+void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size, int nid) {
   // Free segments
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
-    _manager.free(segment_start, segment_size);
+    _managers.get(nid).free(segment_start, segment_size);
   });
 }
 
-size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size) {
+size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int nid) {
   size_t total_committed = 0;
   // Commit segments
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
     // Commit segment
-    const size_t committed = _backing.commit(segment_start, segment_size);
+    const size_t committed = _backing.commit(segment_start, segment_size, nid);
     total_committed += committed;
     // Register with NMT
     if (committed > 0) {

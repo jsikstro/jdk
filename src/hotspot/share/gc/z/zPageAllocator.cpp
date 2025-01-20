@@ -634,7 +634,7 @@ bool ZPageAllocator::claim_physical(ZPageAllocation* allocation, ZNUMALocal& sta
 
   // Try to claim physical memory
   if (!claim_mapped_or_increase_capacity(state, size, mappings)) {
-    // Failed to claim enough memory or increase capacity (on current NUMA node)
+    // Failed to claim enough memory or increase capacity
     return false;
   }
 
@@ -917,11 +917,10 @@ void ZPageAllocator::satisfy_stalled() {
 }
 
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
-  const ZGenerationId generation_id = page->generation_id();
-
   // Extract memory and destroy page
   ZVirtualMemory vmem = page->virtual_memory();
-  ZPageType page_type = page->type();
+  const ZGenerationId generation_id = page->generation_id();
+  const ZPageType page_type = page->type();
   safe_destroy_page(page);
 
   // Perhaps remap mapping
@@ -943,17 +942,21 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   satisfy_stalled();
 }
 
+struct ZToFreeEntry {
+  ZVirtualMemory vmem;
+  ZGenerationId generation_id;
+};
+
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  struct ToCacheEntry { ZVirtualMemory vmem; ZGenerationId generation_id; };
-  ZArray<ToCacheEntry> to_cache;
+  ZArray<ZToFreeEntry> to_cache;
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
     // Extract mapped memory, store generation id and destroy page
     ZVirtualMemory vmem = page->virtual_memory();
-    ZGenerationId generation_id = page->generation_id();
-    ZPageType page_type = page->type();
+    const ZGenerationId generation_id = page->generation_id();
+    const ZPageType page_type = page->type();
 
     safe_destroy_page(page);
 
@@ -969,8 +972,8 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZLocker<ZLock> locker(&_lock);
 
   // Insert mappings to the cache
-  ZArrayIterator<ToCacheEntry> iter(&to_cache);
-  for (ToCacheEntry entry; iter.next(&entry);) {
+  ZArrayIterator<ZToFreeEntry> iter(&to_cache);
+  for (ZToFreeEntry entry; iter.next(&entry);) {
     ZNUMALocal& state = state_from_vmem(entry.vmem);
 
     // Update used statistics and cache memory

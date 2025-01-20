@@ -30,6 +30,7 @@
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
 #include "gc/z/zSyscall_windows.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "runtime/os.hpp"
 #include "unittest.hpp"

@@ -229,7 +229,7 @@ void ZVirtualMemoryManager::initialize_managers(size_t size) {
 
   ZMemoryManager& node0_manager = _managers.get(0);
 
-  for (int numa_id = nodes - 1; numa_id > 0; numa_id--) {
+  for (int numa_id = (int)nodes - 1; numa_id > 0; numa_id--) {
     size_t to_allocate = numa_local_reservation;
     ZMemoryManager& manager = _managers.get(numa_id);
 

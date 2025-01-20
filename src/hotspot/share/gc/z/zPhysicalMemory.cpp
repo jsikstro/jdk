@@ -141,19 +141,24 @@ bool for_each_segment_apply(const zoffset* pmem, size_t num_granules, Function f
   return true;
 }
 
-void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size, int nid) {
+void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size, int numa_id) {
   // Free segments
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
-    _managers.get(nid).free(segment_start, segment_size);
+    _managers.get(numa_id).free(segment_start, segment_size);
   });
 }
 
-size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int nid) {
+size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int numa_id) {
   size_t total_committed = 0;
   // Commit segments
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
     // Commit segment
-    const size_t committed = _backing.commit(segment_start, segment_size, nid);
+#ifdef LINUX
+    const size_t committed = _backing.commit(segment_start, segment_size, numa_id);
+#else
+    const size_t committed = _backing.commit(segment_start, segment_size);
+#endif
+
     total_committed += committed;
     // Register with NMT
     if (committed > 0) {

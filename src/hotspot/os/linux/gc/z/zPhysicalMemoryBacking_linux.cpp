@@ -628,9 +628,9 @@ retry:
   return true;
 }
 
-size_t ZPhysicalMemoryBacking::commit_numa_preferred(zoffset offset, size_t length, int nid) const {
+size_t ZPhysicalMemoryBacking::commit_numa_preferred(zoffset offset, size_t length, int numa_id) const {
   // Setup NUMA policy to allocate memory from a preferred node
-  os::Linux::numa_set_preferred(nid);
+  os::Linux::numa_set_preferred(numa_id);
 
   size_t committed = commit_default(offset, length);
 
@@ -668,11 +668,11 @@ size_t ZPhysicalMemoryBacking::commit_default(zoffset offset, size_t length) con
   }
 }
 
-size_t ZPhysicalMemoryBacking::commit(zoffset offset, size_t length, int nid) const {
+size_t ZPhysicalMemoryBacking::commit(zoffset offset, size_t length, int numa_id) const {
   if (ZNUMA::is_enabled()) {
-    // We want to prefer allocating on a specific NUMA node. nid = -1 means allocate
+    // We want to prefer allocating on a specific NUMA node. numa_id = -1 means allocate
     // on the local node.
-    return commit_numa_preferred(offset, length, nid);
+    return commit_numa_preferred(offset, length, numa_id);
   }
 
   return commit_default(offset, length);

@@ -88,7 +88,7 @@ public:
       _old_seqnum(ZGeneration::old()->seqnum()),
       _harvested(0),
       _committed(0),
-      _numa_id(ZNUMA::id()),
+      _numa_id(-1),
       _claimed_mappings(1),
       _node(),
       _stall_result() {}
@@ -708,6 +708,8 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   {
     ZLocker<ZLock> locker(&_lock);
 
+    // Always start at the current thread's affinity for local allocation
+    allocation->set_numa_id(ZNUMA::id());
     if (claim_physical_round_robin(allocation)) {
       return true;
     }

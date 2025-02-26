@@ -29,12 +29,12 @@
 #include "gc/z/zMemory.hpp"
 #include "gc/z/zValue.hpp"
 
+class ZVirtualReservation;
+
 class ZVirtualMemoryManager {
   friend class ZMapperTest;
 
 private:
-  static size_t calculate_min_range(size_t size);
-
   ZMemoryManager           _reserved_memory;
   ZPerNUMA<ZMemoryManager> _managers;
   ZPerNUMA<ZMemoryRange>   _vmem_ranges;
@@ -46,15 +46,17 @@ private:
   bool pd_reserve(zaddress_unsafe addr, size_t size);
   void pd_unreserve(zaddress_unsafe addr, size_t size);
 
-  bool reserve_contiguous(zoffset start, size_t size);
-  bool reserve_contiguous(size_t size);
-  size_t reserve_discontiguous(zoffset start, size_t size, size_t min_range);
-  size_t reserve_discontiguous(size_t size);
-  size_t reserve(size_t max_capacity);
+  bool reserve_contiguous(ZVirtualReservation* reservation, zoffset start);
+  bool reserve_contiguous(ZVirtualReservation* reservation);
+
+  size_t reserve_discontiguous(ZVirtualReservation* reservation, zoffset start);
+  size_t reserve_discontiguous(ZVirtualReservation* reservation);
+
+  size_t reserve(ZVirtualReservation* reservation);
 
   void set_vmem_range_for_manager(int numa_id);
 
-  DEBUG_ONLY(size_t force_reserve_discontiguous(size_t size);)
+  DEBUG_ONLY(size_t force_reserve_discontiguous(ZVirtualReservation* reservation);)
 
 public:
   ZVirtualMemoryManager(size_t max_capacity);

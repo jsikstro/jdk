@@ -33,11 +33,15 @@ constexpr size_t ZMappedCache::SizeClasses[];
 
 class ZMappedCacheEntry {
 private:
-  zoffset _start;
-  ZIntrusiveRBTreeNode _node;
+  zoffset                          _start;
+  ZIntrusiveRBTreeNode             _node;
   ZMappedCache::ZSizeClassListNode _size_class_list_nodes[ARRAY_SIZE(ZMappedCache::SizeClasses)];
+
 public:
-  ZMappedCacheEntry(zoffset start) : _start(start), _node(), _size_class_list_nodes{} {}
+  ZMappedCacheEntry(zoffset start)
+    : _start(start),
+      _node(),
+      _size_class_list_nodes{} {}
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
   static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);

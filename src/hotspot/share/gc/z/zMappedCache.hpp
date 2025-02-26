@@ -47,6 +47,7 @@ private:
   struct ZSizeClassListNode {
     ZListNode<ZSizeClassListNode> _node;
   };
+
   static constexpr size_t SizeClasses[] = {32 * M, 512 * M};
   static constexpr size_t NumSizeClasses = ARRAY_SIZE(SizeClasses);
 

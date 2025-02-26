@@ -34,13 +34,13 @@ constexpr size_t ZMappedCache::SizeClasses[];
 class ZMappedCacheEntry {
 private:
   zoffset                          _start;
-  ZIntrusiveRBTreeNode             _node;
+  ZIntrusiveRBTreeNode             _tree_node;
   ZMappedCache::ZSizeClassListNode _size_class_list_nodes[ARRAY_SIZE(ZMappedCache::SizeClasses)];
 
 public:
   ZMappedCacheEntry(zoffset start)
     : _start(start),
-      _node(),
+      _tree_node(),
       _size_class_list_nodes{} {}
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
@@ -61,7 +61,7 @@ public:
   }
 
   ZIntrusiveRBTreeNode* node_addr() {
-    return &_node;
+    return &_tree_node;
   }
 
   void update_start(zoffset start) {
@@ -78,7 +78,7 @@ ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) 
 }
 
 const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
-  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _tree_node));
 }
 
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
@@ -182,6 +182,7 @@ void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZMemoryRange& v
 
   // Replace in tree
   _tree.replace(entry->node_addr(), cursor);
+
   // And in size class lists
   const size_t new_size = vmem.size();
   const size_t old_size = old_entry->vmem().size();

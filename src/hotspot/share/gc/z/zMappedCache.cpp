@@ -210,7 +210,10 @@ void ZMappedCache::update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem) {
 }
 
 ZMappedCache::ZMappedCache()
-  : _tree(), _size_class_lists{}, _size(0), _min(_size) {}
+  : _tree(),
+    _size_class_lists{},
+    _size(0),
+    _min(_size) {}
 
 void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   _size += vmem.size();

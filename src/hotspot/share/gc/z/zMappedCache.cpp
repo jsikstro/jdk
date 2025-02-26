@@ -44,8 +44,8 @@ public:
       _size_class_list_nodes{} {}
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
-  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);
-  static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
+  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* tree_node);
+  static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* list_node, size_t index);
 
   zoffset start() const {
     return _start;
@@ -77,14 +77,14 @@ ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) 
   return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(node)));
 }
 
-const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
-  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _tree_node));
+const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* tree_node) {
+  return (const ZMappedCacheEntry*)((uintptr_t)tree_node - offset_of(ZMappedCacheEntry, _tree_node));
 }
 
-ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
+ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* list_node, size_t index) {
   const size_t size_class_list_nodes_offset = offset_of(ZMappedCacheEntry, _size_class_list_nodes);
   const size_t element_offset_in_array = sizeof(ZMappedCache::ZSizeClassListNode) * index;
-  return (ZMappedCacheEntry*)((uintptr_t)node - (size_class_list_nodes_offset + element_offset_in_array));
+  return (ZMappedCacheEntry*)((uintptr_t)list_node - (size_class_list_nodes_offset + element_offset_in_array));
 }
 
 static void* entry_address_for_zoffset_end(zoffset_end offset) {
@@ -325,8 +325,8 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
   };
 
   // Scan size classes
-  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
-    const size_t index = index_plus_one - 1;
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t index = NumSizeClasses - 1 - i;
     const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
@@ -382,8 +382,8 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
   };
 
   // Scan size classes
-  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
-    const size_t index = index_plus_one - 1;
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t index = NumSizeClasses - 1 - i;
     const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
@@ -419,6 +419,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
 size_t ZMappedCache::reset_min() {
   const size_t old_min = _min;
   _min = _size;
+
   return old_min;
 }
 

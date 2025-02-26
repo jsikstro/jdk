@@ -112,16 +112,21 @@ static ZMappedCacheEntry* create_entry(const ZMemoryRange& vmem) {
 }
 
 int ZMappedCache::EntryCompare::operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b) {
-  ZMemoryRange vmem_a = ZMappedCacheEntry::cast_to_entry(a)->vmem();
-  ZMemoryRange vmem_b = ZMappedCacheEntry::cast_to_entry(b)->vmem();
+  const ZMemoryRange vmem_a = ZMappedCacheEntry::cast_to_entry(a)->vmem();
+  const ZMemoryRange vmem_b = ZMappedCacheEntry::cast_to_entry(b)->vmem();
+
   if (vmem_a.end() < vmem_b.start()) { return -1; }
   if (vmem_b.end() < vmem_a.start()) { return 1; }
+
   return 0; // Overlapping
 }
+
 int ZMappedCache::EntryCompare::operator()(zoffset key, ZIntrusiveRBTreeNode* node) {
-  ZMemoryRange vmem = ZMappedCacheEntry::cast_to_entry(node)->vmem();
+  const ZMemoryRange vmem = ZMappedCacheEntry::cast_to_entry(node)->vmem();
+
   if (key < vmem.start()) { return -1; }
   if (key > vmem.end()) { return 1; }
+
   return 0; // Containing
 }
 

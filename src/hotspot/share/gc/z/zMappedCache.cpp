@@ -39,34 +39,42 @@ private:
 public:
   ZMappedCacheEntry(zoffset start) : _start(start), _node(), _size_class_list_nodes{} {}
 
-  zoffset start() const { return _start; }
+  static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
+  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);
+  static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
+
+  zoffset start() const {
+    return _start;
+  }
+
   zoffset_end end() const {
     const uintptr_t this_addr = reinterpret_cast<uintptr_t>(this);
     return zoffset_end(align_up(this_addr, ZGranuleSize) - ZAddressHeapBase);
   }
+
   ZMemoryRange vmem() const {
     return ZMemoryRange(start(), end() - start());
   }
 
-  ZIntrusiveRBTreeNode* node_addr() { return &_node; }
+  ZIntrusiveRBTreeNode* node_addr() {
+    return &_node;
+  }
 
-  void update_start(zoffset start) { _start = start; }
-
-  static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
-  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);
-  static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
+  void update_start(zoffset start) {
+    _start = start;
+  }
 
   ZMappedCache::ZSizeClassListNode* size_class_node(size_t index) {
     return &_size_class_list_nodes[index];
   }
 };
 
-const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
-  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
-}
-
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) {
   return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(node)));
+}
+
+const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
+  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
 }
 
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
@@ -89,7 +97,14 @@ static void* entry_address_for_zoffset_end(zoffset_end offset) {
 
 static ZMappedCacheEntry* create_entry(const ZMemoryRange& vmem) {
   precond(vmem.size() >= ZGranuleSize);
-  return new (entry_address_for_zoffset_end(vmem.end())) ZMappedCacheEntry(vmem.start());
+
+  void* placement_addr = entry_address_for_zoffset_end(vmem.end());
+  ZMappedCacheEntry* entry = new (placement_addr) ZMappedCacheEntry(vmem.start());
+
+  assert(entry->start() == vmem.start(), "must be");
+  assert(entry->end() == vmem.end(), "must be");
+
+  return entry;
 }
 
 int ZMappedCache::EntryCompare::operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b) {
@@ -115,16 +130,12 @@ size_t ZMappedCache::get_size_class(size_t index) {
 }
 
 void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
-  // Create new entry
   ZMappedCacheEntry* entry = create_entry(vmem);
 
-  assert(entry->start() == vmem.start(), "must be");
-  assert(entry->end() == vmem.end(), "must be");
-
-  // And insert it in tree
+  // Insert in tree
   _tree.insert(entry->node_addr(), cursor);
 
-  // And in size class lists
+  // Insert in size class(es)
   const size_t size = vmem.size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
     const size_t size_class = get_size_class(i);
@@ -137,9 +148,6 @@ void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZMemoryRange& vm
 void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
   ZIntrusiveRBTreeNode* const node = cursor.node();
   ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-
-  assert(entry->start() == vmem.start(), "must be");
-  assert(entry->end() == vmem.end(), "must be");
 
   // Remove from tree
   _tree.remove(cursor);
@@ -156,11 +164,7 @@ void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZMemoryRange& vm
 }
 
 void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
-  // Create new entry
   ZMappedCacheEntry* entry = create_entry(vmem);
-
-  assert(entry->start() == vmem.start(), "must be");
-  assert(entry->end() == vmem.end(), "must be");
 
   ZIntrusiveRBTreeNode* const node = cursor.node();
   ZMappedCacheEntry* old_entry = ZMappedCacheEntry::cast_to_entry(node);

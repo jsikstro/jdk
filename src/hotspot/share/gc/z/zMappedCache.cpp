@@ -201,6 +201,7 @@ void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZMemoryRange& v
 
 void ZMappedCache::update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem) {
   assert(entry->end() == vmem.end(), "must be");
+
   // Remove or add to lists if required
   const size_t new_size = vmem.size();
   const size_t old_size = entry->vmem().size();
@@ -242,11 +243,13 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
                              ZMappedCacheEntry::cast_to_entry(next_cursor.node())->start() == vmem.end();
 
   if (extends_left && extends_right) {
-    ZIntrusiveRBTreeNode* const next_node = next_cursor.node();
+    ZMappedCacheEntry* next_entry = ZMappedCacheEntry::cast_to_entry(next_cursor.node());
+
     const ZMemoryRange left_vmem = ZMappedCacheEntry::cast_to_entry(current_cursor.node())->vmem();
-    const ZMemoryRange right_vmem = ZMappedCacheEntry::cast_to_entry(next_node)->vmem();
+    const ZMemoryRange right_vmem = next_entry->vmem();
     assert(left_vmem.adjacent_to(vmem), "must be");
     assert(vmem.adjacent_to(right_vmem), "must be");
+
     ZMemoryRange new_vmem = left_vmem;
     new_vmem.grow_from_back(vmem.size());
     new_vmem.grow_from_back(right_vmem.size());
@@ -255,7 +258,7 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
     remove(current_cursor, left_vmem);
 
     // And update next's start
-    update(ZMappedCacheEntry::cast_to_entry(next_node), new_vmem);
+    update(next_entry, new_vmem);
 
     return;
   }
@@ -272,13 +275,16 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   }
 
   if (extends_right) {
-    const ZMemoryRange right_vmem = ZMappedCacheEntry::cast_to_entry(next_cursor.node())->vmem();
+    ZMappedCacheEntry* next_entry = ZMappedCacheEntry::cast_to_entry(next_cursor.node());
+
+    const ZMemoryRange right_vmem = next_entry->vmem();
     assert(vmem.adjacent_to(right_vmem), "must be");
+
     ZMemoryRange new_vmem = vmem;
     new_vmem.grow_from_back(right_vmem.size());
 
     // Update next's start
-    update(ZMappedCacheEntry::cast_to_entry(next_cursor.node()), new_vmem);
+    update(next_entry, new_vmem);
 
     return;
   }

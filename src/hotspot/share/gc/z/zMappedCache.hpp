@@ -30,6 +30,7 @@
 #include "utilities/globalDefinitions.hpp"
 
 class ZMappedCacheEntry;
+
 class ZMappedCache {
   friend class ZMappedCacheTest;
   friend class ZMappedCacheEntry;
@@ -49,10 +50,10 @@ private:
   static constexpr size_t SizeClasses[] = {32 * M, 512 * M};
   static constexpr size_t NumSizeClasses = ARRAY_SIZE(SizeClasses);
 
-  Tree _tree;
+  Tree                      _tree;
   ZList<ZSizeClassListNode> _size_class_lists[NumSizeClasses];
-  size_t _size;
-  size_t _min;
+  size_t                    _size;
+  size_t                    _min;
 
   static size_t get_size_class(size_t index);
 

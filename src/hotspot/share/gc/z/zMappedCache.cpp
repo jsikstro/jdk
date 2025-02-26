@@ -110,6 +110,7 @@ size_t ZMappedCache::get_size_class(size_t index) {
   if (index == 0 && ZPageSizeMedium > ZPageSizeSmall) {
     return ZPageSizeMedium;
   }
+
   return SizeClasses[index];
 }
 
@@ -303,8 +304,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
     const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
-      ZSizeClassListNode* list_node;
-      while (iter.next(&list_node)) {
+      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
         ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
         if (remove_mapping(entry->node_addr())) {
           assert(removed == size, "must be");
@@ -351,6 +351,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
       *mapping = used;
       return true;
     }
+
     return false;
   };
 
@@ -360,8 +361,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
     const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
-      ZSizeClassListNode* list_node;
-      while (iter.next(&list_node)) {
+      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
         ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
         if (remove_mapping(entry->node_addr())) {
           _size -= size;
@@ -369,6 +369,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
           return true;
         }
       }
+
       // No use walking any more, other lists and the tree will only contain smaller nodes.
       return false;
     }
@@ -382,8 +383,10 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
       _min = MIN2(_size, _min);
       return true;
     }
+
     node = node->next();
   }
+
   return false;
 }
 
@@ -402,6 +405,7 @@ size_t ZMappedCache::remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_
   if (size == 0) {
     return 0;
   }
+
   return remove_mappings(mappings, size);
 }
 

@@ -168,6 +168,7 @@ void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZMemoryRange& vm
       _size_class_lists[i].remove(entry->size_class_node(i));
     }
   }
+
   // Destroy entry
   entry->~ZMappedCacheEntry();
 }
@@ -193,6 +194,7 @@ void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZMemoryRange& v
       _size_class_lists[i].insert_first(entry->size_class_node(i));
     }
   }
+
   // Destroy old entry
   old_entry->~ZMappedCacheEntry();
 }
@@ -218,6 +220,7 @@ void ZMappedCache::update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem) {
       }
     }
   }
+
   // And update entry
   entry->update_start(vmem.start());
 }
@@ -230,11 +233,14 @@ ZMappedCache::ZMappedCache()
 
 void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   _size += vmem.size();
-  auto current_cursor = _tree.find(vmem.start());
-  auto next_cursor = _tree.next(current_cursor);
+
+  Tree::FindCursor current_cursor = _tree.find(vmem.start());
+  Tree::FindCursor next_cursor = _tree.next(current_cursor);
+
   const bool extends_left = current_cursor.found();
   const bool extends_right = next_cursor.is_valid() && next_cursor.found() &&
                              ZMappedCacheEntry::cast_to_entry(next_cursor.node())->start() == vmem.end();
+
   if (extends_left && extends_right) {
     ZIntrusiveRBTreeNode* const next_node = next_cursor.node();
     const ZMemoryRange left_vmem = ZMappedCacheEntry::cast_to_entry(current_cursor.node())->vmem();
@@ -244,13 +250,13 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
     ZMemoryRange new_vmem = left_vmem;
     new_vmem.grow_from_back(vmem.size());
     new_vmem.grow_from_back(right_vmem.size());
-    assert(new_vmem.end() == right_vmem.end(), "must be");
-    assert(new_vmem.start() == left_vmem.start(), "must be");
 
     // Remove current (left vmem)
     remove(current_cursor, left_vmem);
+
     // And update next's start
     update(ZMappedCacheEntry::cast_to_entry(next_node), new_vmem);
+
     return;
   }
 
@@ -259,10 +265,9 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
     assert(left_vmem.adjacent_to(vmem), "must be");
     ZMemoryRange new_vmem = left_vmem;
     new_vmem.grow_from_back(vmem.size());
-    assert(new_vmem.end() == vmem.end(), "must be");
-    assert(new_vmem.start() == left_vmem.start(), "must be");
 
     replace(current_cursor, new_vmem);
+
     return;
   }
 
@@ -271,14 +276,12 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
     assert(vmem.adjacent_to(right_vmem), "must be");
     ZMemoryRange new_vmem = vmem;
     new_vmem.grow_from_back(right_vmem.size());
-    assert(new_vmem.start() == vmem.start(), "must be");
-    assert(new_vmem.end() == right_vmem.end(), "must be");
+
     // Update next's start
     update(ZMappedCacheEntry::cast_to_entry(next_cursor.node()), new_vmem);
+
     return;
   }
-
-  assert(!extends_left && !extends_right, "must be");
 
   insert(current_cursor, vmem);
 }

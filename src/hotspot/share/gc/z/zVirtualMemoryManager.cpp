@@ -37,8 +37,8 @@
 class ZVirtualReservation {
 private:
   ZMemoryManager _reserved;
-  size_t _size;
-  size_t _min_range;
+  size_t         _size;
+  size_t         _min_range;
 
   static size_t limit_max_reservation(size_t size) {
     const size_t limit = MIN2(ZAddressOffsetMax, ZAddressSpaceLimit::heap());
@@ -57,6 +57,7 @@ public:
     : _reserved(),
       _size(limit_max_reservation(size)),
       _min_range(calculate_min_range(size)) {
+
     assert(is_aligned(size, ZGranuleSize), "Must be granule aligned 0x%zx", size);
   }
 
@@ -170,8 +171,8 @@ size_t ZVirtualMemoryManager::reserve_discontiguous(ZVirtualReservation* reserva
     return reservation->size();
   }
 
-  const size_t size = reservation->size();
-  const size_t half = size / 2;
+  const size_t full_size = reservation->size();
+  const size_t half = full_size / 2;
   if (half < reservation->min_range()) {
     // Too small
     return 0;
@@ -182,7 +183,7 @@ size_t ZVirtualMemoryManager::reserve_discontiguous(ZVirtualReservation* reserva
   reservation->set_size(first_part);
   const size_t first_size = reserve_discontiguous(reservation, start);
 
-  const size_t second_part = size - first_part;
+  const size_t second_part = full_size - first_part;
   reservation->set_size(second_part);
   const size_t second_size = reserve_discontiguous(reservation, start + first_part);
 

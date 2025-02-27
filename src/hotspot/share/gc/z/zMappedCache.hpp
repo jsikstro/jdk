@@ -32,7 +32,6 @@
 class ZMappedCacheEntry;
 
 class ZMappedCache {
-  friend class ZMappedCacheTest;
   friend class ZMappedCacheEntry;
 
 private:

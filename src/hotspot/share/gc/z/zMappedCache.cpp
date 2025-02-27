@@ -424,10 +424,6 @@ size_t ZMappedCache::reset_min() {
   return old_min;
 }
 
-size_t ZMappedCache::min() const {
-  return _min;
-}
-
 size_t ZMappedCache::remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size) {
   const size_t size = MIN2(_min, max_size);
   if (size == 0) {

@@ -72,10 +72,8 @@ public:
   void insert_mapping(const ZMemoryRange& vmem);
 
   size_t remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size);
-
   bool remove_mapping_contiguous(ZMemoryRange* mapping, size_t size);
 
-  size_t min() const;
   size_t reset_min();
   size_t remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size);
 

@@ -89,13 +89,16 @@ ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassList
 
 static void* entry_address_for_zoffset_end(zoffset_end offset) {
   STATIC_ASSERT(ZCacheLineSize % alignof(ZMappedCacheEntry) == 0);
+
   constexpr size_t cache_lines_per_z_granule = ZGranuleSize / ZCacheLineSize;
   constexpr size_t cache_lines_per_entry = sizeof(ZMappedCacheEntry) / ZCacheLineSize +
                                            static_cast<size_t>(sizeof(ZMappedCacheEntry) % ZCacheLineSize != 0);
+
   // Do not use the last location
   constexpr size_t number_of_locations = cache_lines_per_z_granule / cache_lines_per_entry - 1;
   const size_t index = (untype(offset) >> ZGranuleSizeShift) % number_of_locations;
   const uintptr_t end_addr = untype(offset) + ZAddressHeapBase;
+
   return reinterpret_cast<void*>(end_addr - (cache_lines_per_entry * ZCacheLineSize) * (index + 1));
 }
 

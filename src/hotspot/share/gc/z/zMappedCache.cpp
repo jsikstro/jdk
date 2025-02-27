@@ -172,7 +172,7 @@ void ZMappedCache::tree_insert(const Tree::FindCursor& cursor, const ZMemoryRang
   // Insert in tree
   _tree.insert(entry->node_addr(), cursor);
 
-  // Insert in size class(es)
+  // And in size class lists
   const size_t size = vmem.size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
     const size_t size_class = get_size_class(i);

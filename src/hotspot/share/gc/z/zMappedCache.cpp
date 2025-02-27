@@ -319,6 +319,49 @@ void ZMappedCache::insert(const ZMemoryRange& vmem) {
   insert(current_cursor, vmem);
 }
 
+ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
+  ZMemoryRange vmem;
+
+  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
+    ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
+    ZMemoryRange mapped_vmem = entry->vmem();
+
+    if (mapped_vmem.size() == size) {
+      auto cursor = _tree.get_cursor(node);
+      assert(cursor.is_valid(), "must be");
+
+      remove(cursor, mapped_vmem);
+      vmem = mapped_vmem;
+      return true;
+    } else if (mapped_vmem.size() > size) {
+      const ZMemoryRange used = mapped_vmem.split_from_front(size);
+      update(entry, mapped_vmem);
+      vmem = used;
+      return true;
+    }
+
+    return false;
+  };
+
+  // Start by scanning size classes
+  if (scan_size_classes(size, remove_mapping, true /* contiguous */)) {
+    _size -= size;
+    _min = MIN2(_size, _min);
+    return vmem;
+  }
+
+  // Fall back to scanning the entire tree
+  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
+    if (remove_mapping(node)) {
+      _size -= size;
+      _min = MIN2(_size, _min);
+      return vmem;
+    }
+  }
+
+  return ZMemoryRange();
+}
+
 size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size) {
   precond(size > 0);
   precond(size % ZGranuleSize == 0);
@@ -378,49 +421,6 @@ size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t
   _size -= removed;
   _min = MIN2(_size, _min);
   return removed;
-}
-
-ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
-  ZMemoryRange mapping;
-
-  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
-    ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-    ZMemoryRange mapped_vmem = entry->vmem();
-
-    if (mapped_vmem.size() == size) {
-      auto cursor = _tree.get_cursor(node);
-      assert(cursor.is_valid(), "must be");
-
-      remove(cursor, mapped_vmem);
-      mapping = mapped_vmem;
-      return true;
-    } else if (mapped_vmem.size() > size) {
-      const ZMemoryRange used = mapped_vmem.split_from_front(size);
-      update(entry, mapped_vmem);
-      mapping = used;
-      return true;
-    }
-
-    return false;
-  };
-
-  // Start by scanning size classes
-  if (scan_size_classes(size, remove_mapping, true /* contiguous */)) {
-    _size -= size;
-    _min = MIN2(_size, _min);
-    return mapping;
-  }
-
-  // Fall back to scanning the entire tree
-  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
-    if (remove_mapping(node)) {
-      _size -= size;
-      _min = MIN2(_size, _min);
-      return mapping;
-    }
-  }
-
-  return ZMemoryRange();
 }
 
 size_t ZMappedCache::reset_min() {

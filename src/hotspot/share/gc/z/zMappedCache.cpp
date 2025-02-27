@@ -330,16 +330,19 @@ ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
     ZMemoryRange cached_vmem = entry->vmem();
 
     if (cached_vmem.size() == size) {
-      auto cursor = _tree.get_cursor(node);
+      Tree::FindCursor cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
 
       tree_remove(cursor, cached_vmem);
       mapping = cached_vmem;
+
       return true;
     } else if (cached_vmem.size() > size) {
       const ZMemoryRange used = cached_vmem.split_from_front(size);
+
       tree_update(entry, cached_vmem);
       mapping = used;
+
       return true;
     }
 
@@ -376,7 +379,7 @@ size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t
     size_t after_remove = removed + cached_vmem.size();
 
     if (after_remove <= size) {
-      auto cursor = _tree.get_cursor(node);
+      Tree::FindCursor cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
 
       tree_remove(cursor, cached_vmem);

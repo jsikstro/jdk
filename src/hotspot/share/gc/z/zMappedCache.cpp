@@ -332,6 +332,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
     if (after_remove <= size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
+
       remove(cursor, mapped_vmem);
       removed = after_remove;
       mappings->append(mapped_vmem);
@@ -343,9 +344,11 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
       const size_t uneeded = after_remove - size;
       const size_t needed =  mapped_vmem.size() - uneeded;
       const ZMemoryRange used = mapped_vmem.split_from_front(needed);
+
       update(entry, mapped_vmem);
       mappings->append(used);
       removed = size;
+
       return true;
     }
 
@@ -385,6 +388,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
     if (mapped_vmem.size() == size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
+
       remove(cursor, mapped_vmem);
       *mapping = mapped_vmem;
       return true;

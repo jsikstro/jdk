@@ -380,7 +380,9 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
   return removed;
 }
 
-bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size) {
+ZMemoryRange ZMappedCache::remove_mapping_contiguous(size_t size) {
+  ZMemoryRange mapping;
+
   const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
     ZMemoryRange mapped_vmem = entry->vmem();
@@ -390,12 +392,12 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
       assert(cursor.is_valid(), "must be");
 
       remove(cursor, mapped_vmem);
-      *mapping = mapped_vmem;
+      mapping = mapped_vmem;
       return true;
     } else if (mapped_vmem.size() > size) {
       const ZMemoryRange used = mapped_vmem.split_from_front(size);
       update(entry, mapped_vmem);
-      *mapping = used;
+      mapping = used;
       return true;
     }
 
@@ -406,7 +408,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
   if (scan_size_classes(size, remove_mapping, true /* contiguous */)) {
     _size -= size;
     _min = MIN2(_size, _min);
-    return true;
+    return mapping;
   }
 
   // Fall back to scanning the entire tree
@@ -414,11 +416,11 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
     if (remove_mapping(node)) {
       _size -= size;
       _min = MIN2(_size, _min);
-      return true;
+      return mapping;
     }
   }
 
-  return false;
+  return ZMemoryRange();
 }
 
 size_t ZMappedCache::reset_min() {

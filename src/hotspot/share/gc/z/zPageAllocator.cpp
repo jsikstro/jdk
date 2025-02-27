@@ -347,8 +347,8 @@ bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation)
   ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
 
   // Try to allocate a contiguous mapping.
-  ZMemoryRange mapping;
-  if (_cache.remove_mapping_contiguous(&mapping, size)) {
+  ZMemoryRange mapping = _cache.remove_mapping_contiguous(size);
+  if (!mapping.is_null()) {
     mappings->append(mapping);
     return true;
   }

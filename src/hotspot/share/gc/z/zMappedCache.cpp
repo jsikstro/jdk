@@ -180,8 +180,7 @@ void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZMemoryRange& vm
 }
 
 void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
-  ZIntrusiveRBTreeNode* const node = cursor.node();
-  ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
+  ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(cursor.node());
 
   // Remove from tree
   _tree.remove(cursor);
@@ -293,6 +292,7 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   if (extends_left) {
     const ZMemoryRange left_vmem = ZMappedCacheEntry::cast_to_entry(current_cursor.node())->vmem();
     assert(left_vmem.adjacent_to(vmem), "must be");
+
     ZMemoryRange new_vmem = left_vmem;
     new_vmem.grow_from_back(vmem.size());
 

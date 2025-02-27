@@ -138,6 +138,31 @@ size_t ZMappedCache::get_size_class(size_t index) {
   return SizeClasses[index];
 }
 
+template <typename Function>
+bool ZMappedCache::scan_size_classes(size_t size, Function function, bool contiguous) {
+  // Scan size classes from largest matching size class
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t index = NumSizeClasses - 1 - i;
+    const size_t size_class = get_size_class(index);
+    if (size >= size_class) {
+      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
+      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
+        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
+        if (function(entry->node_addr())) {
+          return true;
+        }
+      }
+
+      if (contiguous) {
+        // No use walking any more, other lists and the tree will only contain smaller nodes.
+        return false;
+      }
+    }
+  }
+
+  return false;
+}
+
 void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
   ZMappedCacheEntry* entry = create_entry(vmem);
 
@@ -160,6 +185,7 @@ void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZMemoryRange& vm
 
   // Remove from tree
   _tree.remove(cursor);
+
   // And in size class lists
   const size_t size = vmem.size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
@@ -296,6 +322,7 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
 size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size) {
   precond(size > 0);
   precond(size % ZGranuleSize == 0);
+
   size_t removed = 0;
   const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
@@ -321,30 +348,20 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
       removed = size;
       return true;
     }
+
     return false;
   };
 
-  // Scan size classes
-  for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t index = NumSizeClasses - 1 - i;
-    const size_t size_class = get_size_class(index);
-    if (size >= size_class) {
-      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
-      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
-        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
-        if (remove_mapping(entry->node_addr())) {
-          assert(removed == size, "must be");
-          _size -= size;
-          _min = MIN2(_size, _min);
-          return size;
-        }
-      }
-    }
+  // Start by scanning size classes
+  if (scan_size_classes(size, remove_mapping, false /* contiguous */)) {
+    assert(removed == size, "must be");
+    _size -= size;
+    _min = MIN2(_size, _min);
+    return size;
   }
 
   // Find what mappings to remove
-  ZIntrusiveRBTreeNode* node = _tree.first();
-  while (node != nullptr) {
+  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr;) {
     ZIntrusiveRBTreeNode* next_node = node->next();
     if (remove_mapping(node)) {
       assert(removed == size, "must be");
@@ -381,36 +398,20 @@ bool ZMappedCache::remove_mapping_contiguous(ZMemoryRange* mapping, size_t size)
     return false;
   };
 
-  // Scan size classes
-  for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t index = NumSizeClasses - 1 - i;
-    const size_t size_class = get_size_class(index);
-    if (size >= size_class) {
-      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
-      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
-        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
-        if (remove_mapping(entry->node_addr())) {
-          _size -= size;
-          _min = MIN2(_size, _min);
-          return true;
-        }
-      }
-
-      // No use walking any more, other lists and the tree will only contain smaller nodes.
-      return false;
-    }
+  // Start by scanning size classes
+  if (scan_size_classes(size, remove_mapping, true /* contiguous */)) {
+    _size -= size;
+    _min = MIN2(_size, _min);
+    return true;
   }
 
-  // Scan whole tree
-  ZIntrusiveRBTreeNode* node = _tree.first();
-  while (node != nullptr) {
+  // Fall back to scanning the entire tree
+  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
     if (remove_mapping(node)) {
       _size -= size;
       _min = MIN2(_size, _min);
       return true;
     }
-
-    node = node->next();
   }
 
   return false;

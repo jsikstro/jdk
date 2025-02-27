@@ -58,6 +58,9 @@ private:
 
   static size_t get_size_class(size_t index);
 
+  template <typename Function>
+  bool scan_size_classes(size_t size, Function function, bool contiguous);
+
   void insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);

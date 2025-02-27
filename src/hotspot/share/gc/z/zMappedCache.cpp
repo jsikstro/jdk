@@ -258,7 +258,7 @@ ZMappedCache::ZMappedCache()
     _size(0),
     _min(_size) {}
 
-void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
+void ZMappedCache::insert(const ZMemoryRange& vmem) {
   _size += vmem.size();
 
   Tree::FindCursor current_cursor = _tree.find(vmem.start());
@@ -319,7 +319,7 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   insert(current_cursor, vmem);
 }
 
-size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size) {
+size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size) {
   precond(size > 0);
   precond(size % ZGranuleSize == 0);
 
@@ -380,7 +380,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size
   return removed;
 }
 
-ZMemoryRange ZMappedCache::remove_mapping_contiguous(size_t size) {
+ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
   ZMemoryRange mapping;
 
   const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
@@ -436,7 +436,7 @@ size_t ZMappedCache::remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_
     return 0;
   }
 
-  return remove_mappings(mappings, size);
+  return remove_discontiguous(mappings, size);
 }
 
 size_t ZMappedCache::size() const {

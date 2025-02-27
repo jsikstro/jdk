@@ -69,10 +69,10 @@ private:
 public:
   ZMappedCache();
 
-  void insert_mapping(const ZMemoryRange& vmem);
+  void insert(const ZMemoryRange& vmem);
 
-  size_t remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size);
-  ZMemoryRange remove_mapping_contiguous(size_t size);
+  size_t remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size);
+  ZMemoryRange remove_contiguous(size_t size);
 
   size_t reset_min();
   size_t remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size);

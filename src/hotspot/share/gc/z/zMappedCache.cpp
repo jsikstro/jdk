@@ -43,7 +43,7 @@ public:
       _tree_node(),
       _size_class_list_nodes{} {}
 
-  static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
+  static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* tree_node);
   static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* tree_node);
   static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* list_node, size_t index);
 
@@ -73,8 +73,8 @@ public:
   }
 };
 
-ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) {
-  return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(node)));
+ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* tree_node) {
+  return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(tree_node)));
 }
 
 const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* tree_node) {

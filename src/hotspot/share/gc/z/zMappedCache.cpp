@@ -324,18 +324,18 @@ ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
 
   const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-    ZMemoryRange mapped_vmem = entry->vmem();
+    ZMemoryRange cached_vmem = entry->vmem();
 
-    if (mapped_vmem.size() == size) {
+    if (cached_vmem.size() == size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
 
-      remove(cursor, mapped_vmem);
-      vmem = mapped_vmem;
+      remove(cursor, cached_vmem);
+      vmem = cached_vmem;
       return true;
-    } else if (mapped_vmem.size() > size) {
-      const ZMemoryRange used = mapped_vmem.split_from_front(size);
-      update(entry, mapped_vmem);
+    } else if (cached_vmem.size() > size) {
+      const ZMemoryRange used = cached_vmem.split_from_front(size);
+      update(entry, cached_vmem);
       vmem = used;
       return true;
     }
@@ -369,26 +369,26 @@ size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t
   size_t removed = 0;
   const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-    ZMemoryRange mapped_vmem = entry->vmem();
-    size_t after_remove = removed + mapped_vmem.size();
+    ZMemoryRange cached_vmem = entry->vmem();
+    size_t after_remove = removed + cached_vmem.size();
 
     if (after_remove <= size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
 
-      remove(cursor, mapped_vmem);
+      remove(cursor, cached_vmem);
       removed = after_remove;
-      mappings->append(mapped_vmem);
+      mappings->append(cached_vmem);
 
       if (removed == size) {
         return true;
       }
     } else {
       const size_t uneeded = after_remove - size;
-      const size_t needed =  mapped_vmem.size() - uneeded;
-      const ZMemoryRange used = mapped_vmem.split_from_front(needed);
+      const size_t needed =  cached_vmem.size() - uneeded;
+      const ZMemoryRange used = cached_vmem.split_from_front(needed);
 
-      update(entry, mapped_vmem);
+      update(entry, cached_vmem);
       mappings->append(used);
       removed = size;
 

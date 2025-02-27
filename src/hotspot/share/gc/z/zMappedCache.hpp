@@ -61,10 +61,10 @@ private:
   template <typename Function>
   bool scan_size_classes(size_t size, Function function, bool contiguous);
 
-  void insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
+  void tree_insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
 
 public:
   ZMappedCache();

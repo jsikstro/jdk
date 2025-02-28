@@ -58,10 +58,6 @@ public:
   ZAllocationFlags()
     : _flags(0) {}
 
-  void set_no_cache() {
-    _flags |= field_no_cache::encode(true);
-  }
-
   void set_non_blocking() {
     _flags |= field_non_blocking::encode(true);
   }
@@ -72,6 +68,10 @@ public:
 
   void set_low_address() {
     _flags |= field_low_address::encode(true);
+  }
+
+  void set_no_cache() {
+    _flags |= field_no_cache::encode(true);
   }
 
   bool non_blocking() const {

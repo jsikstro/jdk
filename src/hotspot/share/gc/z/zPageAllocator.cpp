@@ -152,6 +152,10 @@ public:
     return _old_seqnum;
   }
 
+  size_t current_max_capacity() const {
+    return _current_max_capacity;
+  }
+
   size_t flushed() const {
     return _flushed;
   }
@@ -166,10 +170,6 @@ public:
 
   void set_committed(size_t committed) {
     _committed = committed;
-  }
-
-  size_t current_max_capacity() const {
-    return _current_max_capacity;
   }
 
   bool wait() {
@@ -600,7 +600,7 @@ ZPage* ZPageAllocator::defragment_page(ZPage* page) {
 bool ZPageAllocator::is_alloc_allowed(size_t size, size_t curr_max_capacity, bool use_cache) const {
   const size_t unavailable = (use_cache ? _used : _capacity) + _claimed;
 
-  if (curr_max_capacity < unavailable) {
+  if (curr_max_capacity <= unavailable) {
     return false;
   }
 
@@ -839,7 +839,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   EventZPageAllocation event;
 
   for (int i = 0; i < 2; ++i) {
-    const size_t curr_max_capacity = ZHeap::heap()->current_max_capacity();
+    const size_t curr_max_capacity = current_max_capacity();
     ZPageAllocation allocation(type, size, flags, curr_max_capacity);
 
     // Allocate one or more pages from the page cache. If the allocation
@@ -894,7 +894,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   // After two attempts to allocate the page, we have performed aggressive
   // page cache flushing and failed to either commit or map memory. In this
-  // scenario, trying again is unlikely to be more successful, and we bail
+  // scenario, trying again is unlikely to be more successful, and we bail.
   return nullptr;
 }
 

@@ -27,6 +27,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zSyscall_windows.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemoryManager.hpp"
@@ -75,6 +76,7 @@ public:
 
     ZSyscall::initialize();
     ZGlobalsPointers::initialize();
+    ZNUMA::initialize();
 
     // Fake a ZVirtualMemoryManager
     _vmm = (ZVirtualMemoryManager*)os::malloc(sizeof(ZVirtualMemoryManager), mtTest);

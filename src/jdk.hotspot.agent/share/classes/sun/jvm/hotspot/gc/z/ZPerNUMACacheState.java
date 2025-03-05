@@ -37,6 +37,7 @@ import sun.jvm.hotspot.types.TypeDataBase;
 public class ZPerNUMACacheState extends VMObject {
 
     private static AddressField addrField;
+    private static long valueOffset = 4 * 1024; // 4K
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
@@ -47,9 +48,10 @@ public class ZPerNUMACacheState extends VMObject {
         addrField = type.getAddressField("_addr");
     }
 
-    public ZCacheState value() {
-        Address valueAddr = addrField.getValue(addr);
-        return VMObjectFactory.newObject(ZCacheState.class, valueAddr);
+    public ZCacheState value(long id) {
+        Address valueArrayAddr = addrField.getValue(addr);
+        Address cacheStateAddr = valueArrayAddr.addOffsetTo(id * valueOffset);
+        return VMObjectFactory.newObject(ZCacheState.class, cacheStateAddr);
     }
 
     public ZPerNUMACacheState(Address addr) {

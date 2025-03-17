@@ -72,7 +72,7 @@ public:
 
   ZPage* clone_limited() const;
 
-  size_t object_max_count() const;
+  uint32_t object_max_count() const;
   size_t object_alignment_shift() const;
   size_t object_alignment() const;
 

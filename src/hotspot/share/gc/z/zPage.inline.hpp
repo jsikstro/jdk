@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -53,7 +53,7 @@ inline const char* ZPage::type_to_string() const {
   }
 }
 
-inline size_t ZPage::object_max_count() const {
+inline uint32_t ZPage::object_max_count() const {
   switch (type()) {
   case ZPageType::large:
     // A large page can only contain a single
@@ -61,7 +61,7 @@ inline size_t ZPage::object_max_count() const {
     return 1;
 
   default:
-    return size() >> object_alignment_shift();
+    return checked_cast<uint32_t>(size() >> object_alignment_shift());
   }
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -38,7 +38,7 @@ private:
   static const size_t NumSegments = 64;
 
   const size_t      _bitmap_size;
-  const uint32_t    _segment_size;
+  const size_t      _segment_size;
   const int         _segment_shift;
 
   volatile uint32_t _seqnum;
@@ -77,7 +77,7 @@ private:
   void iterate_segment(BitMap::idx_t segment, Function function);
 
 public:
-  ZLiveMap(size_t size);
+  ZLiveMap(uint32_t size);
   ZLiveMap(const ZLiveMap& other) = delete;
 
   void reset();

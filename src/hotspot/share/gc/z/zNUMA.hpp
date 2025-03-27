@@ -29,6 +29,8 @@
 #include "utilities/globalDefinitions.hpp"
 
 class ZNUMA : public AllStatic {
+  friend class ZNUMATest;
+
 private:
   static bool     _enabled;
   static uint32_t _count;

@@ -25,12 +25,34 @@
 #include "gc/z/zNUMA.inline.hpp"
 #include "unittest.hpp"
 
-#ifdef ASSERT
-TEST(ZNUMA, calculate_share) {
-  // Setup number of NUMA nodes through faking
-  const size_t nodes = 4;
-  ZFakeNUMA = nodes;
+using namespace testing;
 
+#ifdef ASSERT
+
+class ZNUMATest : public Test {
+protected:
+  const size_t nodes = 4;
+
+  uint32_t _original_count;
+  uint     _original_ZFakeNUMA;
+
+public:
+  virtual void SetUp() {
+    _original_count = ZNUMA::_count;
+    _original_ZFakeNUMA = ZFakeNUMA;
+
+    // Setup number of NUMA nodes through faking
+    ZFakeNUMA = nodes;
+    ZNUMA::_count = nodes;
+  }
+
+  virtual void TearDown() {
+    ZNUMA::_count = _original_count;
+    ZFakeNUMA = _original_ZFakeNUMA;
+  }
+};
+
+TEST_F(ZNUMATest, calculate_share) {
   {
     // Test even spread
     const size_t total = nodes * ZGranuleSize;
@@ -89,4 +111,5 @@ TEST(ZNUMA, calculate_share) {
     EXPECT_EQ(ZNUMA::calculate_share(nodes - 1, total), ZGranuleSize);
   }
 }
+
 #endif // ASSERT

@@ -1696,7 +1696,7 @@ retry:
   claim_physical_for_increased_capacity(allocation, vmem);
 
   // Commit memory for the increased capacity and map the entire vmem.
-  if (!commit_and_map_memory(allocation, vmem)) {
+  if (!commit_and_map(allocation, vmem)) {
     free_after_alloc_page_failed(allocation);
     goto retry;
   }
@@ -1948,21 +1948,21 @@ void ZPageAllocator::claim_physical_for_increased_capacity(ZMemoryAllocation* al
   }
 }
 
-bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem) {
+bool ZPageAllocator::commit_and_map(ZPageAllocation* allocation, const ZVirtualMemory& vmem) {
   assert(allocation->size() == vmem.size(), "vmem should be the final entry");
 
   if (allocation->is_multi_partition()) {
-    return commit_and_map_memory_multi_partition(allocation->multi_partition_allocation(), vmem);
+    return commit_and_map_multi_partition(allocation->multi_partition_allocation(), vmem);
   } else {
-    return commit_and_map_memory_single_partition(allocation->single_partition_allocation(), vmem);
+    return commit_and_map_single_partition(allocation->single_partition_allocation(), vmem);
   }
 }
 
-bool ZPageAllocator::commit_and_map_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
-  const bool commit_successful = commit_memory_single_partition(single_partition_allocation, vmem);
+bool ZPageAllocator::commit_and_map_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
+  const bool commit_successful = commit_single_partition(single_partition_allocation, vmem);
 
   // Map the vmem
-  map_committed_memory_single_partition(single_partition_allocation, vmem);
+  map_committed_single_partition(single_partition_allocation, vmem);
 
   if (commit_successful) {
     return true;
@@ -1974,15 +1974,15 @@ bool ZPageAllocator::commit_and_map_memory_single_partition(ZSinglePartitionAllo
   return false;
 }
 
-bool ZPageAllocator::commit_and_map_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
-  if (commit_memory_multi_partition(multi_partition_allocation, vmem)) {
+bool ZPageAllocator::commit_and_map_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
+  if (commit_multi_partition(multi_partition_allocation, vmem)) {
     // Commit successful
 
     // Unmap harvested vmems
-    unmap_harvested_memory_multi_partition(multi_partition_allocation);
+    unmap_harvested_multi_partition(multi_partition_allocation);
 
     // Map the vmem
-    map_committed_memory_multi_partition(multi_partition_allocation, vmem);
+    map_committed_multi_partition(multi_partition_allocation, vmem);
 
     return true;
   }
@@ -1993,7 +1993,7 @@ bool ZPageAllocator::commit_and_map_memory_multi_partition(ZMultiPartitionAlloca
   return false;
 }
 
-void ZPageAllocator::commit_memory(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
+void ZPageAllocator::commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
   ZPartition& partition = allocation->partition();
 
   if (allocation->increased_capacity() > 0) {
@@ -2002,22 +2002,22 @@ void ZPageAllocator::commit_memory(ZMemoryAllocation* allocation, const ZVirtual
   }
 }
 
-bool ZPageAllocator::commit_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
+bool ZPageAllocator::commit_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
   ZMemoryAllocation* const allocation = single_partition_allocation->allocation();
 
-  commit_memory(allocation, vmem);
+  commit(allocation, vmem);
 
   return !allocation->commit_failed();
 }
 
-bool ZPageAllocator::commit_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
+bool ZPageAllocator::commit_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
   bool commit_failed = false;
   ZVirtualMemory remaining = vmem;
   for (ZMemoryAllocation* const allocation : *multi_partition_allocation->allocations()) {
     // Split off the partial allocation's memory range
     const ZVirtualMemory partial_vmem = remaining.shrink_from_front(allocation->size());
 
-    commit_memory(allocation, partial_vmem);
+    commit(allocation, partial_vmem);
 
     // Keep track if any partial allocation failed to commit
     commit_failed |= allocation->commit_failed();
@@ -2028,7 +2028,7 @@ bool ZPageAllocator::commit_memory_multi_partition(ZMultiPartitionAllocation* mu
   return !commit_failed;
 }
 
-void ZPageAllocator::unmap_harvested_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation) {
+void ZPageAllocator::unmap_harvested_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation) {
   for (ZMemoryAllocation* const allocation : *multi_partition_allocation->allocations()) {
     ZPartition& partition = allocation->partition();
     ZArray<ZVirtualMemory>* const partial_vmems = allocation->partial_vmems();
@@ -2042,7 +2042,7 @@ void ZPageAllocator::unmap_harvested_memory_multi_partition(ZMultiPartitionAlloc
   }
 }
 
-void ZPageAllocator::map_committed_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
+void ZPageAllocator::map_committed_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
   ZMemoryAllocation* const allocation = single_partition_allocation->allocation();
   ZPartition& partition = allocation->partition();
 
@@ -2055,7 +2055,7 @@ void ZPageAllocator::map_committed_memory_single_partition(ZSinglePartitionAlloc
   }
 }
 
-void ZPageAllocator::map_committed_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
+void ZPageAllocator::map_committed_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem) {
   ZVirtualMemory remaining = vmem;
   for (ZMemoryAllocation* const allocation : *multi_partition_allocation->allocations()) {
     assert(!allocation->commit_failed(), "Sanity check");

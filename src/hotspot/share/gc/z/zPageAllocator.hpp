@@ -203,18 +203,18 @@ private:
   void claim_physical_for_increased_capacity_multi_partition(const ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
   void claim_physical_for_increased_capacity(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem);
 
-  bool commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem);
-  bool commit_and_map_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
-  bool commit_and_map_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
+  bool commit_and_map(ZPageAllocation* allocation, const ZVirtualMemory& vmem);
+  bool commit_and_map_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
+  bool commit_and_map_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
 
-  void commit_memory(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem);
-  bool commit_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
-  bool commit_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
+  void commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem);
+  bool commit_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
+  bool commit_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
 
-  void unmap_harvested_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation);
+  void unmap_harvested_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation);
 
-  void map_committed_memory_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
-  void map_committed_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
+  void map_committed_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
+  void map_committed_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
 
   void cleanup_failed_commit_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
   void cleanup_failed_commit_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);

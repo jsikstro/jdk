@@ -2370,12 +2370,11 @@ ZPartition& ZPageAllocator::partition_from_vmem(const ZVirtualMemory& vmem) {
 }
 
 size_t ZPageAllocator::sum_available() const {
-  const uint32_t numa_nodes = ZNUMA::count();
-
   size_t total = 0;
 
-  for (uint32_t i = 0; i < numa_nodes; ++i) {
-    total += _partitions.get(i).available();
+  ZPerNUMAConstIterator<ZPartition> iter = partition_iterator();
+  for (const ZPartition* partition; iter.next(&partition);) {
+    total += partition->available();
   }
 
   return total;

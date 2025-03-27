@@ -39,6 +39,16 @@ void ZNMT::reserve(zaddress_unsafe start, size_t size) {
   MemTracker::record_virtual_memory_reserve((address)untype(start), size, CALLER_PC, mtJavaHeap);
 }
 
+void ZNMT::unreserve(zaddress_unsafe start, size_t size) {
+  if (MemTracker::enabled()) {
+    // We are the owner of the reserved memory, and any failure to unreserve
+    // are fatal, so so we don't need to hold a lock while unreserving memory.
+    fprintf(stderr, "Unreserving " EXACTFMT "\n", EXACTFMTARGS(size));
+    MemTracker::NmtVirtualMemoryLocker nvml;
+    MemTracker::record_virtual_memory_release((address)untype(start), size);
+  }
+}
+
 void ZNMT::commit(zbacking_offset offset, size_t size) {
   MemTracker::allocate_memory_in(ZNMT::_device, untype(offset), size, CALLER_PC, mtJavaHeap);
 }

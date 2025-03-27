@@ -37,22 +37,22 @@ class ZLiveMap {
 private:
   static const size_t NumSegments = 64;
 
+  const size_t      _bitmap_size;
+  const uint32_t    _segment_size;
+  const int         _segment_shift;
+
   volatile uint32_t _seqnum;
   volatile uint32_t _live_objects;
   volatile size_t   _live_bytes;
   BitMap::bm_word_t _segment_live_bits;
   BitMap::bm_word_t _segment_claim_bits;
-  size_t            _bitmap_size;
   ZBitMap           _bitmap;
-  int               _segment_shift;
 
   const BitMapView segment_live_bits() const;
   const BitMapView segment_claim_bits() const;
 
   BitMapView segment_live_bits();
   BitMapView segment_claim_bits();
-
-  BitMap::idx_t segment_size() const;
 
   BitMap::idx_t segment_start(BitMap::idx_t segment) const;
   BitMap::idx_t segment_end(BitMap::idx_t segment) const;

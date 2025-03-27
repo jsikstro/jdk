@@ -40,14 +40,15 @@ static size_t bitmap_size(size_t size, size_t NumSegments) {
 }
 
 ZLiveMap::ZLiveMap(size_t size)
-  : _seqnum(0),
+  : _bitmap_size(bitmap_size(size, NumSegments)),
+    _segment_size(_bitmap_size / NumSegments),
+    _segment_shift(log2i_exact(_segment_size)),
+    _seqnum(0),
     _live_objects(0),
     _live_bytes(0),
     _segment_live_bits(0),
     _segment_claim_bits(0),
-    _bitmap_size(bitmap_size(size, NumSegments)),
-    _bitmap(0),
-    _segment_shift(log2i_exact(segment_size())) {}
+    _bitmap(0) {}
 
 void ZLiveMap::initialize_bitmap() {
   if (_bitmap.size() != _bitmap_size) {
@@ -125,7 +126,7 @@ void ZLiveMap::reset_segment(BitMap::idx_t segment) {
   // Segment claimed, clear it
   const BitMap::idx_t start_index = segment_start(segment);
   const BitMap::idx_t end_index   = segment_end(segment);
-  if (segment_size() / BitsPerWord >= 32) {
+  if (_segment_size / BitsPerWord >= 32) {
     _bitmap.clear_large_range(start_index, end_index);
   } else {
     _bitmap.clear_range(start_index, end_index);

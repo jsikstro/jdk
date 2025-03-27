@@ -158,6 +158,7 @@ public:
   }
 
   void pop_all(const ZVirtualMemory& vmem) {
+    assert(vmem.granule_count() == _stash.length(), "Must match stash size");
     copy_from_stash(0, vmem);
   }
 };

@@ -952,7 +952,7 @@ size_t ZPartition::uncommit(uint64_t* timeout) {
       return 0;
     }
 
-    // Record flushed memory as claimed and how much we've flushed for this NUMA node
+    // Record flushed memory as claimed and how much we've flushed for this partition
     Atomic::add(&_claimed, flushed);
     _to_uncommit -= flushed;
   }

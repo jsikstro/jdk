@@ -93,8 +93,6 @@ void ZVirtualMemoryManager::initialize_partitions(ZVirtualMemoryReserver* reserv
 
     // Calculate how much reserved memory this partition gets
     const size_t reserved_for_partition = ZNUMA::calculate_share(numa_id, size_for_partitions, ZGranuleSize, ignore_count);
-    fprintf(stderr, "reserved_for_partition " EXACTFMT "\n", EXACTFMTARGS(reserved_for_partition));
-
 
     // Transfer reserved memory
     reserver->initialize_partition(partition, reserved_for_partition);

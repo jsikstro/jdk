@@ -31,7 +31,7 @@ using namespace testing;
 
 class ZNUMATest : public Test {
 protected:
-  const size_t nodes = 4;
+  const uint32_t nodes = 4;
 
   uint32_t _original_count;
   uint     _original_ZFakeNUMA;

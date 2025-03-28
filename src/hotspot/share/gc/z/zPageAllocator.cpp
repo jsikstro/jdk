@@ -2290,7 +2290,7 @@ void ZPageAllocator::remap_and_defragment(const ZVirtualMemory& vmem, ZArray<ZVi
   ZPartition& partition = partition_from_vmem(vmem);
 
   // If no lower address can be found, don't remap/defrag
-  if (_virtual.lowest_available_address(_virtual.get_partition_id(vmem)) > vmem.start()) {
+  if (_virtual.lowest_available_address(partition.numa_id()) > vmem.start()) {
     vmems_out->append(vmem);
     return;
   }
@@ -2303,16 +2303,19 @@ void ZPageAllocator::remap_and_defragment(const ZVirtualMemory& vmem, ZArray<ZVi
   // Stash segments
   ZSegmentStash segments(&_physical_mappings, vmem);
 
-  // Shuffle vmem - put new vmems in entries
+  // Shuffle vmem - put new vmems in vmems_out
   const int start_index = vmems_out->length();
   partition.free_and_claim_virtual_from_low_many(vmem, vmems_out);
 
-  // Restore segments
-  segments.pop_all(vmems_out->slice_back(start_index));
+  // The output array may contain results from other defragmentations as well,
+  // so we only operate on the result(s) we just got.
+  ZArraySlice<ZVirtualMemory> defragmented_vmems = vmems_out->slice_back(start_index);
 
-  // The entries array may contain entries from other defragmentations as well,
-  // so we only operate on the last ranges that we have just inserted
-  for (const ZVirtualMemory& claimed_vmem : vmems_out->slice_back(start_index)) {
+  // Restore segments
+  segments.pop_all(defragmented_vmems);
+
+  // Map and pre-touch
+  for (const ZVirtualMemory& claimed_vmem : defragmented_vmems) {
     partition.map_virtual(claimed_vmem);
     pretouch_memory(claimed_vmem.start(), claimed_vmem.size());
   }

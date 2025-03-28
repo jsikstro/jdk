@@ -613,7 +613,7 @@ public:
                  _size,
                  st._total_harvested,
                  st._total_committed_capacity,
-                 st._num_harvested_vmems,
+                 (unsigned)st._num_harvested_vmems,
                  _is_multi_partition,
                  successful,
                  _flags.non_blocking());

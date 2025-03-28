@@ -43,7 +43,7 @@ void ZNMT::unreserve(zaddress_unsafe start, size_t size) {
   if (MemTracker::enabled()) {
     // We are the owner of the reserved memory, and any failure to unreserve
     // are fatal, so so we don't need to hold a lock while unreserving memory.
-    fprintf(stderr, "Unreserving " EXACTFMT "\n", EXACTFMTARGS(size));
+
     MemTracker::NmtVirtualMemoryLocker nvml;
     MemTracker::record_virtual_memory_release((address)untype(start), size);
   }

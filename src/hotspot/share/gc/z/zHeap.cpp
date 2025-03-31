@@ -337,9 +337,12 @@ void ZHeap::print_extended_on_error(outputStream* st) const {
 
   // Print all pages
   st->print_cr("ZGC Page Table:");
-  ZPageTableIterator iter(&_page_table);
-  for (ZPage* page; iter.next(&page);) {
-    page->print_on(st);
+  {
+    streamIndentor indentor(st, 1);
+    ZPageTableIterator iter(&_page_table);
+    for (ZPage* page; iter.next(&page);) {
+      page->print_on(st);
+    }
   }
 
   // Allow pages to be deleted

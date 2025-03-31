@@ -1302,8 +1302,10 @@ void ZPartition::threads_do(ThreadClosure* tc) const {
 }
 
 void ZPartition::print_on(outputStream* st) const {
-  st->print("  Partition %u", _numa_id);
-  st->fill_to(17 + st->indentation());
+  streamIndentor indentor(st, 1);
+
+  st->print("Partition %u", _numa_id);
+  st->fill_to(17);
   st->print_cr("used %zuM, capacity %zuM, max capacity %zuM",
                _used / M, _capacity / M, _max_capacity / M);
 
@@ -1311,7 +1313,9 @@ void ZPartition::print_on(outputStream* st) const {
 }
 
 void ZPartition::print_extended_on_error(outputStream* st) const {
-  st->print_cr(" Partition %u", _numa_id);
+  streamIndentor indentor(st, 1);
+
+  st->print_cr("Partition %u", _numa_id);
   _cache.print_extended_on(st);
 }
 
@@ -2545,8 +2549,12 @@ void ZPageAllocator::print_on_error(outputStream* st) const {
 }
 
 void ZPageAllocator::print_on_inner(outputStream* st) const {
+  streamIndentor indentor(st, 1);
+
   // Print total usage
-  st->print_cr(" ZHeap           used %zuM, capacity %zuM, max capacity %zuM",
+  st->print("ZHeap");
+  st->fill_to(17);
+  st->print_cr("used %zuM, capacity %zuM, max capacity %zuM",
                used() / M, capacity() / M, max_capacity() / M);
 
   // Print per-partition

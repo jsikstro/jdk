@@ -568,7 +568,11 @@ size_t ZMappedCache::remove_from_min(size_t max_size, ZArray<ZVirtualMemory>* ou
 }
 
 void ZMappedCache::print_on(outputStream* st) const {
-  st->print_cr("   Cache         size %zuM, entry count %zu", _size / M, _entry_count);
+  streamIndentor indentor(st, 1);
+
+  st->print("Cache");
+  st->fill_to(17);
+  st->print_cr("size %zuM, entry count %zu", _size / M, _entry_count);
 
   if (_entry_count == 0) {
     // Empty cache, skip printing size classes
@@ -582,9 +586,10 @@ void ZMappedCache::print_on(outputStream* st) const {
   }
 
   // Print information on size classes
+  streamIndentor indentor_l2(st, 1);
 
-  st->print("    size classes");
-  st->fill_to(17 + st->indentation());
+  st->print("size classes");
+  st->fill_to(17);
 
   // Print the number of entries smaller than the min size class's size
   const size_t small_entry_size_count = _entry_count - size_class_entry_count;
@@ -609,11 +614,13 @@ void ZMappedCache::print_on(outputStream* st) const {
 }
 
 void ZMappedCache::print_extended_on(outputStream* st) const {
+  streamIndentor indentor(st, 1);
+
   // Print the ranges and size of all nodes in the tree
   for (ZMappedCache::TreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
     const ZVirtualMemory vmem = ZMappedCacheEntry::cast_to_entry(node)->vmem();
 
-    st->print_cr("  " PTR_FORMAT " " PTR_FORMAT " " EXACTFMT "",
+    st->print_cr(PTR_FORMAT " " PTR_FORMAT " " EXACTFMT,
                  untype(vmem.start()), untype(vmem.end()), EXACTFMTARGS(vmem.size()));
   }
 }

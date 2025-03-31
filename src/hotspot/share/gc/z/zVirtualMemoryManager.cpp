@@ -58,8 +58,8 @@ void ZVirtualMemoryReserver::unreserve() {
     // Unregister the reserved memory from NMT
     ZNMT::unreserve(addr, vmem.size());
 
-     // Unreserve address space
-     pd_unreserve(addr, vmem.size());
+    // Unreserve address space
+    pd_unreserve(addr, vmem.size());
   }
 }
 

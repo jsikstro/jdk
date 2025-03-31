@@ -825,20 +825,22 @@ void DefNewGeneration::verify() {
 }
 
 void DefNewGeneration::print_on(outputStream* st) const {
-  st->print(" %-10s", name());
+  streamIndentor indentor(st, 1);
+  st->print("%-10s", name());
 
-  st->print(" total %zuK, used %zuK",
-            capacity()/K, used()/K);
-  st->print_cr(" [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
-               p2i(_virtual_space.low_boundary()),
-               p2i(_virtual_space.high()),
-               p2i(_virtual_space.high_boundary()));
+  st->print_column("total %zuK, used %zuK [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
+                   capacity()/K,
+                   used()/K,
+                   p2i(_virtual_space.low_boundary()),
+                   p2i(_virtual_space.high()),
+                   p2i(_virtual_space.high_boundary()));
 
-  st->print("  eden");
+  streamIndentor indentor_l2(st, 1);
+  st->print("eden");
   eden()->print_on(st);
-  st->print("  from");
+  st->print("from");
   from()->print_on(st);
-  st->print("  to  ");
+  st->print("to");
   to()->print_on(st);
 }
 

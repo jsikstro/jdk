@@ -53,6 +53,7 @@
 #include "runtime/vmThread.hpp"
 #include "services/memoryManager.hpp"
 #include "utilities/macros.hpp"
+#include "utilities/ostream.hpp"
 #include "utilities/vmError.hpp"
 
 PSYoungGen*  ParallelScavengeHeap::_young_gen = nullptr;
@@ -663,6 +664,9 @@ bool ParallelScavengeHeap::print_location(outputStream* st, void* addr) const {
 }
 
 void ParallelScavengeHeap::print_on(outputStream* st) const {
+  StreamAutoIndentor auto_indentor(st);
+  st->set_column_offset(15);
+
   if (young_gen() != nullptr) {
     young_gen()->print_on(st);
   }

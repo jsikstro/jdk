@@ -212,25 +212,27 @@ void MetaspaceUtils::print_report(outputStream* out, size_t scale) {
 }
 
 void MetaspaceUtils::print_on(outputStream* out) {
-
   // Used from all GCs. It first prints out totals, then, separately, the class space portion.
   MetaspaceCombinedStats stats = get_combined_statistics();
-  out->print_cr(" Metaspace       "
-                "used %zuK, "
-                "committed %zuK, "
-                "reserved %zuK",
-                stats.used()/K,
-                stats.committed()/K,
-                stats.reserved()/K);
+
+  streamIndentor indentor(out, 1);
+  out->print("Metaspace");
+  out->print_column("used %zuK, "
+                    "committed %zuK, "
+                    "reserved %zuK",
+                    stats.used()/K,
+                    stats.committed()/K,
+                    stats.reserved()/K);
 
   if (Metaspace::using_class_space()) {
-    out->print_cr("  class space    "
-                  "used %zuK, "
-                  "committed %zuK, "
-                  "reserved %zuK",
-                  stats.class_space_stats().used()/K,
-                  stats.class_space_stats().committed()/K,
-                  stats.class_space_stats().reserved()/K);
+    streamIndentor indentor_l2(out, 1);
+    out->print("class space");
+    out->print_column("used %zuK, "
+                      "committed %zuK, "
+                      "reserved %zuK",
+                      stats.class_space_stats().used()/K,
+                      stats.class_space_stats().committed()/K,
+                      stats.class_space_stats().reserved()/K);
   }
 }
 

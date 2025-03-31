@@ -116,6 +116,7 @@
 #include "utilities/autoRestore.hpp"
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/ostream.hpp"
 #include "utilities/stack.inline.hpp"
 
 size_t G1CollectedHeap::_humongous_object_threshold_in_words = 0;
@@ -2107,32 +2108,45 @@ void G1CollectedHeap::print_heap_regions() const {
 }
 
 void G1CollectedHeap::print_on(outputStream* st) const {
-  size_t heap_used = Heap_lock->owned_by_self() ? used() : used_unlocked();
-  st->print(" %-20s", "garbage-first heap");
-  st->print(" total reserved %zuK, committed %zuK, used %zuK",
-            _hrm.reserved().byte_size()/K, capacity()/K, heap_used/K);
-  st->print(" [" PTR_FORMAT ", " PTR_FORMAT ")",
-            p2i(_hrm.reserved().start()),
-            p2i(_hrm.reserved().end()));
-  st->cr();
-  st->print("  region size %zuK, ", G1HeapRegion::GrainBytes / K);
-  uint young_regions = young_regions_count();
-  st->print("%u young (%zuK), ", young_regions,
-            (size_t) young_regions * G1HeapRegion::GrainBytes / K);
-  uint survivor_regions = survivor_regions_count();
-  st->print("%u survivors (%zuK)", survivor_regions,
-            (size_t) survivor_regions * G1HeapRegion::GrainBytes / K);
-  st->cr();
-  if (_numa->is_enabled()) {
-    uint num_nodes = _numa->num_active_nodes();
-    st->print("  remaining free region(s) on each NUMA node: ");
-    const uint* node_ids = _numa->node_ids();
-    for (uint node_index = 0; node_index < num_nodes; node_index++) {
-      uint num_free_regions = _hrm.num_free_regions(node_index);
-      st->print("%u=%u ", node_ids[node_index], num_free_regions);
+  StreamAutoIndentor auto_indentor(st);
+  st->set_column_offset(21);
+
+  {
+    streamIndentor indentor(st, 1);
+
+    st->print("garbage-first heap");
+    size_t heap_used = Heap_lock->owned_by_self() ? used() : used_unlocked();
+    st->print_column("total reserved %zuK, committed %zuK, used %zuK [" PTR_FORMAT ", " PTR_FORMAT ")",
+                     _hrm.reserved().byte_size()/K,
+                     capacity()/K,
+                     heap_used/K,
+                     p2i(_hrm.reserved().start()),
+                     p2i(_hrm.reserved().end()));
+
+    streamIndentor indentor_l2(st, 1);
+    st->print("region size");
+
+    uint young_regions = young_regions_count();
+    uint survivor_regions = survivor_regions_count();
+    st->print_column("%zuK %u young (%zuK) %u survivors (%zuK)",
+                     G1HeapRegion::GrainBytes / K,
+                     young_regions,
+                     (size_t)young_regions * G1HeapRegion::GrainBytes / K,
+                     survivor_regions,
+                     (size_t) survivor_regions * G1HeapRegion::GrainBytes / K);
+
+    if (_numa->is_enabled()) {
+      uint num_nodes = _numa->num_active_nodes();
+      st->print("remaining free region(s) on each NUMA node: ");
+      const uint* node_ids = _numa->node_ids();
+      for (uint node_index = 0; node_index < num_nodes; node_index++) {
+        uint num_free_regions = _hrm.num_free_regions(node_index);
+        st->print("%u=%u ", node_ids[node_index], num_free_regions);
+      }
+      st->cr();
     }
-    st->cr();
   }
+
   MetaspaceUtils::print_on(st);
 }
 

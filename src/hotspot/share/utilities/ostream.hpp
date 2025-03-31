@@ -48,6 +48,7 @@ class outputStream : public CHeapObjBase {
    NONCOPYABLE(outputStream);
    int _indentation; // current indentation
    bool _autoindent; // if true, every line starts with indentation
+   int _column_offset; // used for column-aligned printing
 
  protected:
    int _position;    // visual position on the current line
@@ -112,6 +113,11 @@ class outputStream : public CHeapObjBase {
    // Returns old autoindent state.
    bool set_autoindent(bool value);
 
+   // Column offsetting:
+   // Used in combination with print_column for column-aligned printing
+   int column_offset()                { return _column_offset;   }
+   void set_column_offset(int offset) { _column_offset = offset; }
+
    // sizing
    int position() const { return _position; }
    julong count() const { return _precount + _position; }
@@ -132,6 +138,7 @@ class outputStream : public CHeapObjBase {
    void print_raw_cr(const char* str)             { print_raw(str); cr(); }
    void print_raw_cr(const char* str, size_t len) { print_raw(str, len); cr(); }
    void print_data(void* data, size_t len, bool with_ascii, bool rel_addr=true);
+   void print_column(const char* format, ...) ATTRIBUTE_PRINTF(2, 0);
    void put(char ch);
    void sp(int count = 1);
    void cr();

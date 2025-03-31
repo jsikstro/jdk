@@ -356,6 +356,7 @@ void ZCollectedHeap::prepare_for_verify() {
 
 void ZCollectedHeap::print_on(outputStream* st) const {
   StreamAutoIndentor auto_indentor(st);
+  st->set_column_offset(18);
 
   _heap.print_on(st);
 }
@@ -391,6 +392,7 @@ void ZCollectedHeap::print_on_error(outputStream* st) const {
 
 void ZCollectedHeap::print_extended_on(outputStream* st) const {
   StreamAutoIndentor auto_indentor(st);
+  st->set_column_offset(18);
 
   _heap.print_extended_on_error(st);
 }

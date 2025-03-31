@@ -571,8 +571,7 @@ void ZMappedCache::print_on(outputStream* st) const {
   streamIndentor indentor(st, 1);
 
   st->print("Cache");
-  st->fill_to(17);
-  st->print_cr("size %zuM, entry count %zu", _size / M, _entry_count);
+  st->print_column("size %zuM, entry count %zu", _size / M, _entry_count);
 
   if (_entry_count == 0) {
     // Empty cache, skip printing size classes
@@ -589,7 +588,7 @@ void ZMappedCache::print_on(outputStream* st) const {
   streamIndentor indentor_l2(st, 1);
 
   st->print("size classes");
-  st->fill_to(17);
+  st->fill_to(st->column_offset());
 
   // Print the number of entries smaller than the min size class's size
   const size_t small_entry_size_count = _entry_count - size_class_entry_count;

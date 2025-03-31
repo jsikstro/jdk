@@ -362,15 +362,18 @@ void PSOldGen::post_resize() {
 
 void PSOldGen::print() const { print_on(tty);}
 void PSOldGen::print_on(outputStream* st) const {
-  st->print(" %-15s", name());
-  st->print(" total %zuK, used %zuK",
-              capacity_in_bytes()/K, used_in_bytes()/K);
-  st->print_cr(" [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
-                p2i(virtual_space()->low_boundary()),
-                p2i(virtual_space()->high()),
-                p2i(virtual_space()->high_boundary()));
+  streamIndentor indentor(st, 1);
 
-  st->print("  object"); object_space()->print_on(st);
+  st->print("%s", name());
+  st->print_column("total %zuK, used %zuK [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
+                   capacity_in_bytes()/K,
+                   used_in_bytes()/K,
+                   p2i(virtual_space()->low_boundary()),
+                   p2i(virtual_space()->high()),
+                   p2i(virtual_space()->high_boundary()));
+
+  streamIndentor indentor_l2(st, 1);
+  st->print("object"); object_space()->print_on(st);
 }
 
 void PSOldGen::update_counters() {

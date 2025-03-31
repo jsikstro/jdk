@@ -77,6 +77,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/macros.hpp"
+#include "utilities/ostream.hpp"
 #include "utilities/stack.inline.hpp"
 #include "utilities/vmError.hpp"
 #if INCLUDE_JVMCI
@@ -803,6 +804,9 @@ void SerialHeap::verify(VerifyOption option /* ignored */) {
 void SerialHeap::print_on(outputStream* st) const {
   assert(_young_gen != nullptr, "precondition");
   assert(_old_gen   != nullptr, "precondition");
+
+  StreamAutoIndentor auto_indentor(st);
+  st->set_column_offset(15);
 
   _young_gen->print_on(st);
   _old_gen->print_on(st);

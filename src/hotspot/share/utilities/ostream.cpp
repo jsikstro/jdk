@@ -48,8 +48,10 @@ outputStream::outputStream(bool has_time_stamps) {
   _precount    = 0;
   _indentation = 0;
   _autoindent  = false;
+  _column_offset = 0;
   _scratch     = nullptr;
   _scratch_len = 0;
+
   if (has_time_stamps)  _stamp.update();
 }
 
@@ -334,6 +336,15 @@ void outputStream::print_data(void* data, size_t len, bool with_ascii, bool rel_
       cr();
     }
   }
+}
+
+void outputStream::print_column(const char* format, ...) {
+  fill_to(_column_offset);
+
+  va_list ap;
+  va_start(ap, format);
+  do_vsnprintf_and_write(format, ap, true);
+  va_end(ap);
 }
 
 stringStream::stringStream(size_t initial_capacity) :

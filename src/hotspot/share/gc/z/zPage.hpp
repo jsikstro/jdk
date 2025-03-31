@@ -178,8 +178,8 @@ public:
 
   void log_msg(const char* msg_format, ...) const ATTRIBUTE_PRINTF(2, 3);
 
-  void print_on_msg(outputStream* out, const char* msg) const;
-  void print_on(outputStream* out) const;
+  void print_on_msg(outputStream* st, const char* msg) const;
+  void print_on(outputStream* st) const;
   void print() const;
 
   // Verification

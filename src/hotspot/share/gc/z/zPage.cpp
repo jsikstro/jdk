@@ -151,8 +151,8 @@ void* ZPage::remset_current() {
   return _remembered_set.current();
 }
 
-void ZPage::print_on_msg(outputStream* out, const char* msg) const {
-  out->print_cr("%-6s  " PTR_FORMAT " " PTR_FORMAT " " PTR_FORMAT " %s/%-4u %s%s%s%s",
+void ZPage::print_on_msg(outputStream* st, const char* msg) const {
+  st->print_cr("%-6s  " PTR_FORMAT " " PTR_FORMAT " " PTR_FORMAT " %s/%-4u %s%s%s%s",
                 type_to_string(), untype(start()), untype(top()), untype(end()),
                 is_young() ? "Y" : "O",
                 seqnum(),
@@ -162,8 +162,8 @@ void ZPage::print_on_msg(outputStream* out, const char* msg) const {
                 msg == nullptr ? "" : msg);
 }
 
-void ZPage::print_on(outputStream* out) const {
-  print_on_msg(out, nullptr);
+void ZPage::print_on(outputStream* st) const {
+  print_on_msg(st, nullptr);
 }
 
 void ZPage::print() const {

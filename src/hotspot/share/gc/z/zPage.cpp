@@ -152,12 +152,13 @@ void* ZPage::remset_current() {
 }
 
 void ZPage::print_on_msg(outputStream* out, const char* msg) const {
-  out->print_cr("%-6s  " PTR_FORMAT " " PTR_FORMAT " " PTR_FORMAT " %s/%-4u %s%s%s",
+  out->print_cr("%-6s  " PTR_FORMAT " " PTR_FORMAT " " PTR_FORMAT " %s/%-4u %s%s%s%s",
                 type_to_string(), untype(start()), untype(top()), untype(end()),
                 is_young() ? "Y" : "O",
                 seqnum(),
-                is_allocating()  ? " Allocating " : "",
+                is_allocating()  ? " Allocating"  : "",
                 is_relocatable() ? " Relocatable" : "",
+                msg != nullptr && is_allocating() ? " " : "",
                 msg == nullptr ? "" : msg);
 }
 

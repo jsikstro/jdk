@@ -22,6 +22,7 @@
  */
 
 #include "gc/z/zIntrusiveRBTree.inline.hpp"
+#include "gc/z/zunittest.hpp"
 #include "memory/allocation.hpp"
 #include "memory/arena.hpp"
 #include "nmt/memTag.hpp"
@@ -29,9 +30,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-#include <iterator>
 #include <limits>
-#include <random>
 
 struct ZTestEntryCompare {
   int operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b);
@@ -72,7 +71,10 @@ int ZTestEntryCompare::operator()(int key, const ZIntrusiveRBTreeNode* entry) {
   return key - ZTestEntry::cast_to_outer(entry)->id();
 }
 
-class ZTreeTest : public ::testing::Test {
+class ZTreeTest : public ZTest {
+public:
+  void shuffle_array(ZTestEntry** beg, ZTestEntry** end);
+  void reverse_array(ZTestEntry** beg, ZTestEntry** end);
 };
 
 class ResettableArena : public Arena {
@@ -103,7 +105,7 @@ TEST_F(ZTreeTest, test_random) {
       if (i % s == 0) {
         tree.verify_tree();
       }
-      int id = rand() % s;
+      int id = random() % s;
       auto cursor = tree.find(id);
       if (cursor.found()) {
         // Replace or Remove
@@ -130,7 +132,7 @@ TEST_F(ZTreeTest, test_random) {
   }
 }
 
-static void reverse_array(ZTestEntry** beg, ZTestEntry** end) {
+void ZTreeTest::reverse_array(ZTestEntry** beg, ZTestEntry** end) {
   if (beg == end) {
     return;
   }
@@ -144,19 +146,16 @@ static void reverse_array(ZTestEntry** beg, ZTestEntry** end) {
   }
 }
 
-static void shuffle_array(ZTestEntry** beg, ZTestEntry** end) {
+void ZTreeTest::shuffle_array(ZTestEntry** beg, ZTestEntry** end) {
   if (beg == end) {
     return;
   }
 
-  std::random_device rd;
-  std::mt19937 g(rd());
-  using distribution_t = std::uniform_int_distribution<size_t>;
-  distribution_t d;
-
   for (ZTestEntry** first = beg + 1; first != end; first++) {
-    distribution_t::param_type span(0, std::distance(beg, first));
-    ::swap(*first, *(beg + d(g, span)));
+    const ptrdiff_t distance = first - beg;
+    ASSERT_GE(distance, 0);
+    const ptrdiff_t random_index = random() % distance;
+    ::swap(*first, *(beg + random_index));
   }
 }
 

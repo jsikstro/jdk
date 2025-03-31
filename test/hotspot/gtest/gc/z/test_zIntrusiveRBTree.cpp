@@ -154,7 +154,7 @@ void ZTreeTest::shuffle_array(ZTestEntry** beg, ZTestEntry** end) {
   for (ZTestEntry** first = beg + 1; first != end; first++) {
     const ptrdiff_t distance = first - beg;
     ASSERT_GE(distance, 0);
-    const ptrdiff_t random_index = random() % distance;
+    const ptrdiff_t random_index = random() % (distance + 1);
     ::swap(*first, *(beg + random_index));
   }
 }

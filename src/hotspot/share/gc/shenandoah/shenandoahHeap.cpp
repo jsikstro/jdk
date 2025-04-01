@@ -641,9 +641,7 @@ void ShenandoahHeap::print_on(outputStream* st) const {
 
   st->cr();
   {
-    StreamAutoIndentor auto_indentor(st);
     streamIndentor indentor(st, -1);
-    st->set_column_offset(14);
     MetaspaceUtils::print_on(st);
   }
 

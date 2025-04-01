@@ -62,6 +62,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/ostream.hpp"
 
 using metaspace::ChunkManager;
 using metaspace::CommitLimiter;
@@ -214,6 +215,12 @@ void MetaspaceUtils::print_report(outputStream* out, size_t scale) {
 void MetaspaceUtils::print_on(outputStream* out) {
   // Used from all GCs. It first prints out totals, then, separately, the class space portion.
   MetaspaceCombinedStats stats = get_combined_statistics();
+
+  StreamAutoIndentor auto_indentor(out);
+
+  if (out->column_offset() == 0) {
+    out->set_column_offset(17);
+  }
 
   streamIndentor indentor(out, 1);
   out->print("Metaspace");

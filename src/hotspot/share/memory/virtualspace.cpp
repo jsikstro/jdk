@@ -422,13 +422,20 @@ void VirtualSpace::check_for_contiguity() {
 }
 
 void VirtualSpace::print_on(outputStream* out) const {
-  out->print   ("Virtual space:");
+  streamIndentor indentor(out, 1);
+  out->print("Virtual space");
   if (special()) out->print(" (pinned in memory)");
   out->cr();
-  out->print_cr(" - committed: %zu", committed_size());
-  out->print_cr(" - reserved:  %zu", reserved_size());
-  out->print_cr(" - [low, high]:     [" PTR_FORMAT ", " PTR_FORMAT "]",  p2i(low()), p2i(high()));
-  out->print_cr(" - [low_b, high_b]: [" PTR_FORMAT ", " PTR_FORMAT "]",  p2i(low_boundary()), p2i(high_boundary()));
+
+  streamIndentor indentor_l2(out, 1);
+  out->print("committed");
+  out->print_column("%zu", committed_size());
+  out->print("reserved");
+  out->print_column("%zu", reserved_size());
+  out->print("[low, high]");
+  out->print_column("[" PTR_FORMAT ", " PTR_FORMAT "]",  p2i(low()), p2i(high()));
+  out->print("[low_b, high_b]");
+  out->print_column("[" PTR_FORMAT ", " PTR_FORMAT "]",  p2i(low_boundary()), p2i(high_boundary()));
 }
 
 void VirtualSpace::print() const {

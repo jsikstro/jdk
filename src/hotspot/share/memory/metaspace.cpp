@@ -63,6 +63,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/ostream.hpp"
 
 using metaspace::ChunkManager;
 using metaspace::CommitLimiter;
@@ -214,9 +215,9 @@ void MetaspaceUtils::print_report(outputStream* out, size_t scale) {
 
 void MetaspaceUtils::print_on(outputStream* out) {
 
-  // Used from all GCs. It first prints out totals, then, separately, the class space portion.
+  // First prints out totals, then, separately, the class space portion.
   MetaspaceCombinedStats stats = get_combined_statistics();
-  out->print_cr(" Metaspace       "
+  out->print_cr("Metaspace       "
                 "used %zuK, "
                 "committed %zuK, "
                 "reserved %zuK",
@@ -225,7 +226,8 @@ void MetaspaceUtils::print_on(outputStream* out) {
                 stats.reserved()/K);
 
   if (Metaspace::using_class_space()) {
-    out->print_cr("  class space    "
+    StreamAutoIndentor indentor(out, 1);
+    out->print_cr("class space    "
                   "used %zuK, "
                   "committed %zuK, "
                   "reserved %zuK",

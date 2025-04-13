@@ -68,33 +68,33 @@ Klass* CollectedHeap::_filler_object_klass = nullptr;
 size_t CollectedHeap::_filler_array_max_size = 0;
 size_t CollectedHeap::_stack_chunk_max_size = 0;
 
-class GCMessage : public FormatBuffer<1024> {
- public:
-  bool is_before;
-};
+class GCMessage : public FormatBuffer<512> {};
 
 template <>
 void EventLogBase<GCMessage>::print(outputStream* st, GCMessage& m) {
-  st->print_cr("GC heap %s", m.is_before ? "before" : "after");
   st->print_raw(m);
 }
 
-class GCHeapLog : public EventLogBase<GCMessage> {
+class GCLog : public EventLogBase<GCMessage> {
  private:
   void log_heap(CollectedHeap* heap, bool before);
 
+ protected:
+  virtual void log_usage(CollectedHeap* heap, bool before, outputStream* st) = 0;
+
  public:
-  GCHeapLog() : EventLogBase<GCMessage>("GC Heap History", "gc") {}
+  GCLog(const char* name, const char* handle) : EventLogBase<GCMessage>(name, handle) {}
 
   void log_heap_before(CollectedHeap* heap) {
     log_heap(heap, true);
   }
+
   void log_heap_after(CollectedHeap* heap) {
     log_heap(heap, false);
   }
 };
 
-void GCHeapLog::log_heap(CollectedHeap* heap, bool before) {
+void GCLog::log_heap(CollectedHeap* heap, bool before) {
   if (!should_log()) {
     return;
   }
@@ -104,22 +104,34 @@ void GCHeapLog::log_heap(CollectedHeap* heap, bool before) {
   int index = compute_log_index();
   _records[index].thread = nullptr; // Its the GC thread so it's not that interesting.
   _records[index].timestamp = timestamp;
-  _records[index].data.is_before = before;
   stringStream st(_records[index].data.buffer(), _records[index].data.size());
 
-  st.print_cr("{Heap %s GC invocations=%u (full %u):",
-                 before ? "before" : "after",
-                 heap->total_collections(),
-                 heap->total_full_collections());
-
-  {
-    StreamAutoIndentor indentor(&st, 1);
-    heap->print_on(&st);
-    MetaspaceUtils::print_on(&st);
-  }
-
+  st.print("{");
+  log_usage(heap, before, &st);
   st.print_cr("}");
 }
+
+class MetaspaceGCLog : public GCLog {
+ public:
+  MetaspaceGCLog() : GCLog("Metaspace Usage History", "metaspace") {}
+
+  void log_usage(CollectedHeap* heap, bool before, outputStream* st) override {
+    heap->print_invocations_on(st, "Metaspace", before);
+    StreamAutoIndentor indentor(st, 1);
+    MetaspaceUtils::print_on(st);
+  }
+};
+
+class HeapGCLog : public GCLog {
+ public:
+  HeapGCLog() : GCLog("GC Heap History", "gc") {}
+
+  void log_usage(CollectedHeap* heap, bool before, outputStream* st) override {
+    heap->print_invocations_on(st, "Heap", before);
+    StreamAutoIndentor indentor(st, 1);
+    heap->print_on(st);
+  }
+};
 
 ParallelObjectIterator::ParallelObjectIterator(uint thread_num) :
   _impl(Universe::heap()->parallel_object_iterator(thread_num))
@@ -164,20 +176,38 @@ bool CollectedHeap::contains_null(const oop* p) const {
   return *p == nullptr;
 }
 
+void CollectedHeap::print_invocations_on(outputStream* st, const char* type, bool before) {
+  const char* when = before ? "before" : "after";
+  st->print_cr("%s %s GC invocations=%u (full %u)", type, when, total_collections(), total_full_collections());
+}
+
 void CollectedHeap::print_heap_before_gc() {
   LogTarget(Debug, gc, heap) lt;
   if (lt.is_enabled()) {
     LogStream ls(lt);
-    ls.print_cr("Heap before GC invocations=%u (full %u):", total_collections(), total_full_collections());
+    print_invocations_on(&ls, "Heap", true /* before */);
     ResourceMark rm;
 
     StreamAutoIndentor indentor(&ls, 1);
     print_on(&ls);
-    MetaspaceUtils::print_on(&ls);
   }
 
   if (_gc_heap_log != nullptr) {
     _gc_heap_log->log_heap_before(this);
+  }
+
+  LogTarget(Debug, gc, metaspace) lt_metaspace;
+  if (lt_metaspace.is_enabled()) {
+    LogStream ls(lt_metaspace);
+    print_invocations_on(&ls, "Metaspace", true /* before */);
+    ResourceMark rm;
+
+    StreamAutoIndentor indentor(&ls, 1);
+    MetaspaceUtils::print_on(&ls);
+  }
+
+  if (_metaspace_heap_log != nullptr) {
+    _metaspace_heap_log->log_heap_before(this);
   }
 }
 
@@ -185,16 +215,29 @@ void CollectedHeap::print_heap_after_gc() {
   LogTarget(Debug, gc, heap) lt;
   if (lt.is_enabled()) {
     LogStream ls(lt);
-    ls.print_cr("Heap after GC invocations=%u (full %u):", total_collections(), total_full_collections());
+    print_invocations_on(&ls, "Heap", false /* before */);
     ResourceMark rm;
 
     StreamAutoIndentor indentor(&ls, 1);
     print_on(&ls);
-    MetaspaceUtils::print_on(&ls);
   }
 
   if (_gc_heap_log != nullptr) {
     _gc_heap_log->log_heap_after(this);
+  }
+
+  LogTarget(Debug, gc, metaspace) lt_metaspace;
+  if (lt_metaspace.is_enabled()) {
+    LogStream ls(lt_metaspace);
+    print_invocations_on(&ls, "Metaspace", false /* before */);
+    ResourceMark rm;
+
+    StreamAutoIndentor indentor(&ls, 1);
+    MetaspaceUtils::print_on(&ls);
+  }
+
+  if (_metaspace_heap_log != nullptr) {
+    _metaspace_heap_log->log_heap_before(this);
   }
 }
 
@@ -301,9 +344,11 @@ CollectedHeap::CollectedHeap() :
 
   // Create the ring log
   if (LogEvents) {
-    _gc_heap_log = new GCHeapLog();
+    _gc_heap_log = new HeapGCLog();
+    _metaspace_heap_log = new MetaspaceGCLog();
   } else {
     _gc_heap_log = nullptr;
+    _metaspace_heap_log = nullptr;
   }
 }
 

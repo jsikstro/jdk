@@ -1203,7 +1203,6 @@ void VMError::report(outputStream* st, bool _verbose) {
         st->print_cr("Heap:");
         StreamAutoIndentor indentor(st, 1);
         Universe::heap()->print_on(st);
-        MetaspaceUtils::print_on(st);
         st->cr();
       }
       Universe::heap()->print_on_error(st);
@@ -1216,8 +1215,12 @@ void VMError::report(outputStream* st, bool _verbose) {
     }
 
   STEP_IF("printing metaspace information", _verbose && Universe::is_fully_initialized())
-    st->print_cr("Metaspace:");
-    MetaspaceUtils::print_basic_report(st, 0);
+    {
+      st->print_cr("Metaspace:");
+      StreamAutoIndentor indentor(st, 1);
+      MetaspaceUtils::print_on(st);
+      MetaspaceUtils::print_basic_report(st, 0);
+    }
 
   STEP_IF("printing code cache information", _verbose && Universe::is_fully_initialized())
     // print code cache information before vm abort
@@ -1393,7 +1396,6 @@ void VMError::print_vm_info(outputStream* st) {
       st->print_cr("Heap:");
       StreamAutoIndentor indentor(st, 1);
       Universe::heap()->print_on(st);
-      MetaspaceUtils::print_on(st);
       st->cr();
     }
     Universe::heap()->print_on_error(st);
@@ -1406,6 +1408,8 @@ void VMError::print_vm_info(outputStream* st) {
 
   if (Universe::is_fully_initialized()) {
     st->print_cr("Metaspace:");
+    StreamAutoIndentor indentor(st, 1);
+    MetaspaceUtils::print_on(st);
     MetaspaceUtils::print_basic_report(st, 0);
   }
 

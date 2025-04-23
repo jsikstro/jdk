@@ -33,6 +33,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
 #include "gc/z/zIterator.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocate.hpp"
@@ -42,6 +43,7 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVerify.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "prims/jvmtiTagMap.hpp"
@@ -384,7 +386,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size, uint32_t pid) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -395,7 +397,7 @@ static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, siz
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return allocator->alloc_page_for_relocation(type, size, flags);
+  return allocator->alloc_page_for_relocation(type, size, pid, flags);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {
@@ -426,7 +428,9 @@ public:
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
     ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
-    ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
+
+    const uint32_t target_pid = forwarding->target_partition_id();
+    ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size(), target_pid);
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
     }
@@ -439,7 +443,7 @@ public:
     return page;
   }
 
-  void share_target_page(ZPage* page) {
+  void share_target_page(uint32_t pid, ZPage* page) {
     // Does nothing
   }
 
@@ -463,10 +467,12 @@ public:
 };
 
 class ZRelocateMediumAllocator {
+  typedef ZPage* TargetArray[ZAllocator::_relocation_allocators];
+
 private:
   ZGeneration* const _generation;
   ZConditionLock     _lock;
-  ZPage*             _shared[ZAllocator::_relocation_allocators];
+  ZPerNUMA<TargetArray> _shared;
   bool               _in_place;
   volatile size_t    _in_place_count;
 
@@ -479,19 +485,23 @@ public:
       _in_place_count(0) {}
 
   ~ZRelocateMediumAllocator() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
-      if (_shared[i] != nullptr) {
-        retire_target_page(_generation, _shared[i]);
+    ZPerNUMAIterator<TargetArray> iter(&_shared);
+    for (TargetArray* ts; iter.next(&ts);) {
+      for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+        ZPage* page = (*ts)[i];
+        if (page != nullptr) {
+          retire_target_page(_generation, page);
+        }
       }
     }
   }
 
-  ZPage* shared(ZPageAge age) {
-    return _shared[static_cast<uint>(age) - 1];
+  ZPage* shared(const uint32_t pid, const ZPageAge age) {
+    return _shared.get(pid)[static_cast<uint>(age) - 1];
   }
 
-  void set_shared(ZPageAge age, ZPage* page) {
-    _shared[static_cast<uint>(age) - 1] = page;
+  void set_shared(const uint32_t pid, const ZPageAge age, ZPage* page) {
+    _shared.get(pid)[static_cast<uint>(age) - 1] = page;
   }
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
@@ -502,15 +512,17 @@ public:
       _lock.wait();
     }
 
+    const uint32_t to_pid = forwarding->target_partition_id();
+    const ZPageAge to_age = forwarding->to_age();
+
     // Allocate a new page only if the shared page is the same as the
     // current target page. The shared page will be different from the
     // current target page if another thread shared a page, or allocated
     // a new page.
-    const ZPageAge to_age = forwarding->to_age();
-    if (shared(to_age) == target) {
+    if (shared(to_pid, to_age) == target) {
       ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
-      ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size());
-      set_shared(to_age, to_page);
+      ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size(), to_pid);
+      set_shared(to_pid, to_age, to_page);
       if (to_page == nullptr) {
         Atomic::inc(&_in_place_count);
         _in_place = true;
@@ -522,18 +534,18 @@ public:
       }
     }
 
-    return shared(to_age);
+    return shared(to_pid, to_age);
   }
 
-  void share_target_page(ZPage* page) {
+  void share_target_page(uint32_t pid, ZPage* page) {
     const ZPageAge age = page->age();
 
     ZLocker<ZConditionLock> locker(&_lock);
     assert(_in_place, "Invalid state");
-    assert(shared(age) == nullptr, "Invalid state");
+    assert(shared(pid, age) == nullptr, "Invalid state");
     assert(page != nullptr, "Invalid page");
 
-    set_shared(age, page);
+    set_shared(pid, age, page);
     _in_place = false;
 
     _lock.notify_all();
@@ -558,20 +570,24 @@ public:
 
 template <typename Allocator>
 class ZRelocateWork : public StackObj {
+  typedef ZPage* TargetArray[ZAllocator::_relocation_allocators];
+
 private:
   Allocator* const   _allocator;
   ZForwarding*       _forwarding;
-  ZPage*             _target[ZAllocator::_relocation_allocators];
+  ZPerNUMA<TargetArray> _targets;
   ZGeneration* const _generation;
   size_t             _other_promoted;
   size_t             _other_compacted;
 
   ZPage* target(ZPageAge age) {
-    return _target[static_cast<uint>(age) - 1];
+    const uint32_t target_partition_id = _forwarding->target_partition_id();
+    return _targets.get(target_partition_id)[static_cast<uint>(age) - 1];
   }
 
   void set_target(ZPageAge age, ZPage* page) {
-    _target[static_cast<uint>(age) - 1] = page;
+    const uint32_t target_partition_id = _forwarding->target_partition_id();
+    _targets.get(target_partition_id)[static_cast<uint>(age) - 1] = page;
   }
 
   size_t object_alignment() const {
@@ -898,15 +914,20 @@ public:
   ZRelocateWork(Allocator* allocator, ZGeneration* generation)
     : _allocator(allocator),
       _forwarding(nullptr),
-      _target(),
+      _targets(),
       _generation(generation),
       _other_promoted(0),
       _other_compacted(0) {}
 
   ~ZRelocateWork() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
-      _allocator->free_target_page(_target[i]);
+    ZPerNUMAIterator<TargetArray> iter(&_targets);
+    for (TargetArray* ts; iter.next(&ts);) {
+      for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+        // There is a null-check inside free_target_page
+        _allocator->free_target_page((*ts)[i]);
+      }
     }
+
     // Report statistics on-behalf of non-worker threads
     _generation->increase_promoted(_other_promoted);
     _generation->increase_compacted(_other_compacted);
@@ -963,6 +984,8 @@ public:
 
     ZVerify::before_relocation(_forwarding);
 
+    const uint32_t target_pid = _forwarding->target_partition_id();
+
     // Relocate objects
     _forwarding->object_iterate([&](oop obj) { relocate_object(obj); });
 
@@ -1000,7 +1023,8 @@ public:
 
       // Different pages when promoting
       ZPage* const target_page = target(_forwarding->to_age());
-      _allocator->share_target_page(target_page);
+      tty->print_cr("Sharing a target page " PTR_FORMAT " with pid %u", p2i(target_page), target_pid);
+      _allocator->share_target_page(target_pid, target_page);
 
     } else {
       // Wait for all other threads to call release_page

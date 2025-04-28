@@ -46,12 +46,13 @@
 // class defines the functions that a heap must implement, and contains
 // infrastructure common to all heaps.
 
-class GCHeapLog;
 class GCHeapSummary;
 class GCTimer;
 class GCTracer;
 class GCMemoryManager;
+class HeapGCLog;
 class MemoryPool;
+class MetaspaceGCLog;
 class MetaspaceSummary;
 class ReservedHeapSpace;
 class Thread;
@@ -94,7 +95,8 @@ class CollectedHeap : public CHeapObj<mtGC> {
   friend class MemAllocator;
 
  private:
-  GCHeapLog* _gc_heap_log;
+  HeapGCLog*      _heap_log;
+  MetaspaceGCLog* _metaspace_log;
 
   // Historic gc information
   size_t _capacity_at_last_gc;
@@ -420,6 +422,8 @@ protected:
 
   virtual void initialize_serviceability() = 0;
 
+  void print_heap_when_gc(bool before);
+
  public:
   void pre_full_gc_dump(GCTimer* timer);
   void post_full_gc_dump(GCTimer* timer);
@@ -434,6 +438,8 @@ protected:
   // some reason a context doesn't allow using the Access API, then this function
   // explicitly checks if the given memory location contains a null value.
   virtual bool contains_null(const oop* p) const;
+
+  virtual void print_invocation_on(outputStream* st, const char* type, bool before) const;
 
   // Print heap information.
   virtual void print_heap_on(outputStream* st) const = 0;

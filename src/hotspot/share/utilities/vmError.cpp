@@ -1390,8 +1390,8 @@ void VMError::print_vm_info(outputStream* st) {
   }
 #endif
 
-  // Take heap lock over both heap and GC printing so that information is
-  // consistent.
+  // Take heap lock over heap, GC and metaspace printing so that information
+  // is consistent.
   {
     MutexLocker ml(Heap_lock);
 
@@ -1415,14 +1415,14 @@ void VMError::print_vm_info(outputStream* st) {
       st->print_cr("Polling page: " PTR_FORMAT, p2i(SafepointMechanism::get_polling_page()));
       st->cr();
     }
-  }
 
-  // STEP("printing metaspace information")
+    // STEP("printing metaspace information")
 
-  if (Universe::is_fully_initialized()) {
-    st->print_cr("Metaspace:");
-    MetaspaceUtils::print_on(st);
-    MetaspaceUtils::print_basic_report(st, 0);
+    if (Universe::is_fully_initialized()) {
+      st->print_cr("Metaspace:");
+      MetaspaceUtils::print_on(st);
+      MetaspaceUtils::print_basic_report(st, 0);
+    }
   }
 
   // STEP("printing code cache information")

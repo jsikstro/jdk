@@ -898,6 +898,15 @@ private:
     const uint32_t preferred_id = _forwarding->target_partition_id();
     uint32_t current_id = preferred_id;
 
+    // The steps below are taken when an object is relocated:
+    //
+    // 1. Attempt to relocate to an already allocated page on the preferred node
+    // 2. If that fails, try to allocate a new page on the preferred node and
+    //    relocate the object there so that the object stays on the same node
+    // 3. If a page cannot be allocated, the object is relocated to another node
+    // 4. If there are no pages available on other nodes, start an in-place
+    //    relocation
+
     while (!try_relocate_object(addr, current_id)) {
       // Attempt to allocate a new target page, only on the preferred partition.
       // If this fails, it won't succeed for any partition.

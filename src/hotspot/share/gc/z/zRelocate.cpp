@@ -570,17 +570,24 @@ private:
   size_t              _other_compacted;
   ZStringDedupContext _string_dedup_context;
 
+  size_t target_offset(ZPageAge age) const {
+    // TODO: The target for a multi-partition allocation can be on any node.
+    const size_t partition_id = _forwarding->partition_id() == (uint32_t)-1u
+        ? 0
+        : _forwarding->partition_id();
+
+    const size_t numa_offset = partition_id * ZAllocator::_relocation_allocators;
+    const size_t age_offset = static_cast<uint>(age) - 1;
+
+    return numa_offset + age_offset;
+  }
 
   ZPage* target(ZPageAge age) {
-    const size_t numa_offset = 0 * ZAllocator::_relocation_allocators;
-    const size_t age_offset = static_cast<uint>(age) - 1;
-    return _target[numa_offset + age_offset];
+    return _target[target_offset(age)];
   }
 
   void set_target(ZPageAge age, ZPage* page) {
-    const size_t numa_offset = 0 * ZAllocator::_relocation_allocators;
-    const size_t age_offset = static_cast<uint>(age) - 1;
-    _target[numa_offset + age_offset] = page;
+    _target[target_offset(age)] = page;
   }
 
   size_t object_alignment() const {

@@ -33,6 +33,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
 #include "gc/z/zIterator.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocate.hpp"
@@ -562,7 +563,8 @@ class ZRelocateWork : public StackObj {
 private:
   Allocator* const    _allocator;
   ZForwarding*        _forwarding;
-  ZPage*              _target[ZAllocator::_relocation_allocators];
+  const size_t        _num_targets;
+  ZPage**             _target;
   ZGeneration* const  _generation;
   size_t              _other_promoted;
   size_t              _other_compacted;
@@ -570,11 +572,15 @@ private:
 
 
   ZPage* target(ZPageAge age) {
-    return _target[static_cast<uint>(age) - 1];
+    const size_t numa_offset = 0 * ZAllocator::_relocation_allocators;
+    const size_t age_offset = static_cast<uint>(age) - 1;
+    return _target[numa_offset + age_offset];
   }
 
   void set_target(ZPageAge age, ZPage* page) {
-    _target[static_cast<uint>(age) - 1] = page;
+    const size_t numa_offset = 0 * ZAllocator::_relocation_allocators;
+    const size_t age_offset = static_cast<uint>(age) - 1;
+    _target[numa_offset + age_offset] = page;
   }
 
   size_t object_alignment() const {
@@ -910,15 +916,23 @@ public:
   ZRelocateWork(Allocator* allocator, ZGeneration* generation)
     : _allocator(allocator),
       _forwarding(nullptr),
+      _num_targets(ZAllocator::_relocation_allocators * ZNUMA::count()),
       _target(),
       _generation(generation),
       _other_promoted(0),
-      _other_compacted(0) {}
+      _other_compacted(0) {
+
+    _target = NEW_C_HEAP_ARRAY(ZPage*, _num_targets, mtGC);
+    memset(_target, 0, _num_targets * sizeof(ZPage*));
+  }
 
   ~ZRelocateWork() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+    for (uint i = 0; i < _num_targets; ++i) {
       _allocator->free_target_page(_target[i]);
     }
+
+    FREE_C_HEAP_ARRAY(ZPage*, _target);
+
     // Report statistics on-behalf of non-worker threads
     _generation->increase_promoted(_other_promoted);
     _generation->increase_compacted(_other_compacted);

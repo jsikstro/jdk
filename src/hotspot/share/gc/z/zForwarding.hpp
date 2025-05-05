@@ -109,6 +109,7 @@ public:
   size_t object_alignment_shift() const;
 
   uint32_t partition_id() const;
+  uint32_t target_partition_id() const;
 
   bool is_promotion() const;
 

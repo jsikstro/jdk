@@ -102,6 +102,14 @@ inline size_t ZForwarding::object_alignment_shift() const {
   return _object_alignment_shift;
 }
 
+inline uint32_t ZForwarding::partition_id() const {
+  if (_page->is_multi_partition()) {
+    return (uint32_t)-1;
+  }
+
+  return _page->single_partition_id();
+}
+
 inline bool ZForwarding::is_promotion() const {
   return _from_age != ZPageAge::old &&
          _to_age == ZPageAge::old;

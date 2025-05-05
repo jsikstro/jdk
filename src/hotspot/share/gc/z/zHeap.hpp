@@ -42,20 +42,20 @@ class ZHeap {
   friend class VMStructs;
 
 private:
-  static ZHeap*           _heap;
+  static ZHeap*              _heap;
 
-  ZPageAllocator          _page_allocator;
-  ZPageTable              _page_table;
+  ZPageAllocator             _page_allocator;
+  ZPageTable                 _page_table;
 
-  ZAllocatorEden          _allocator_eden;
-  ZAllocatorForRelocation _allocator_relocation[ZAllocator::_relocation_allocators];
+  ZAllocatorEden             _allocator_eden;
+  ZAllocator::RelocatorArray _allocator_relocation;
 
-  ZServiceability         _serviceability;
+  ZServiceability            _serviceability;
 
-  ZGenerationOld          _old;
-  ZGenerationYoung        _young;
+  ZGenerationOld             _old;
+  ZGenerationYoung           _young;
 
-  bool                    _initialized;
+  bool                       _initialized;
 
 public:
   static ZHeap* heap();
@@ -101,7 +101,7 @@ public:
   void mark_flush(Thread* thread);
 
   // Page allocation
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
+  ZPage* alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags, ZPageAge age);
   void undo_alloc_page(ZPage* page);
   void free_page(ZPage* page);
   size_t free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages);

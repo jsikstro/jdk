@@ -33,6 +33,7 @@
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
@@ -100,6 +101,15 @@ inline size_t ZForwarding::size() const {
 
 inline size_t ZForwarding::object_alignment_shift() const {
   return _object_alignment_shift;
+}
+
+inline uint32_t ZForwarding::target_partition_id() const {
+  if (_page->is_multi_partition()) {
+    // Use the affinity of the current thread doing relocation
+    return ZNUMA::id();
+  }
+
+  return _page->single_partition_id();
 }
 
 inline bool ZForwarding::is_promotion() const {

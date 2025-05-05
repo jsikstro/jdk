@@ -35,18 +35,24 @@ class ZPage;
 
 class ZAllocator {
 public:
-  static constexpr uint _relocation_allocators = static_cast<uint>(ZPageAge::old);
+  static constexpr uint RelocationAllocators = ZPageAgeMax;
+
+  typedef ZPerNUMA<ZAllocatorForRelocation[ZAllocator::RelocationAllocators]> RelocatorArray;
+  typedef ZPerNUMA<ZAllocatorForRelocation*[ZAllocator::RelocationAllocators]> RelocatorPtrArray;
 
 protected:
   ZObjectAllocator _object_allocator;
 
-  static ZAllocatorEden*          _eden;
-  static ZAllocatorForRelocation* _relocation[ZAllocator::_relocation_allocators];
+  // The allocators below will be pointing to their actual storage in ZHeap.
+  // They are set to their intended location when the allocators are constructed
+  // in ZHeap.
+  static ZAllocatorEden*    _eden;
+  static RelocatorPtrArray* _relocation;
 
 public:
   static ZAllocatorEden* eden();
-  static ZAllocatorForRelocation* relocation(ZPageAge page_age);
-  static ZAllocatorForRelocation* old();
+  static ZAllocatorForRelocation* relocation(ZPageAge page_age, uint32_t partition_id);
+  static ZAllocatorForRelocation* old(uint32_t partition_id);
 
   ZAllocator(ZPageAge age);
 
@@ -74,10 +80,10 @@ public:
   ZAllocatorForRelocation();
 
   // Relocation
-  zaddress alloc_object(size_t size);
+  zaddress alloc_object(size_t size, uint32_t partition_id);
   void undo_alloc_object(zaddress addr, size_t size);
 
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags);
 };
 
 #endif // SHARE_GC_Z_ZALLOCATOR_HPP

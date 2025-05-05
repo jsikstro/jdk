@@ -57,8 +57,8 @@ ZPage* const* ZObjectAllocator::shared_small_page_addr() const {
   return _use_per_cpu_shared_small_pages ? _shared_small_page.addr() : _shared_small_page.addr(0);
 }
 
-ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
-  ZPage* const page = ZHeap::heap()->alloc_page(type, size, flags, _age);
+ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags) {
+  ZPage* const page = ZHeap::heap()->alloc_page(type, size, partition_id, flags, _age);
   if (page != nullptr) {
     // Increment used bytes
     Atomic::add(_used.addr(), size);
@@ -67,8 +67,8 @@ ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlag
   return page;
 }
 
-ZPage* ZObjectAllocator::alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return ZHeap::heap()->alloc_page(type, size, flags, _age);
+ZPage* ZObjectAllocator::alloc_page_for_relocation(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags) {
+  return ZHeap::heap()->alloc_page(type, size, partition_id, flags, _age);
 }
 
 void ZObjectAllocator::undo_alloc_page(ZPage* page) {
@@ -81,6 +81,7 @@ void ZObjectAllocator::undo_alloc_page(ZPage* page) {
 zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
                                                        ZPageType page_type,
                                                        size_t page_size,
+                                                       uint32_t partition_id,
                                                        size_t size,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
@@ -92,7 +93,7 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 
   if (is_null(addr)) {
     // Allocate new page
-    ZPage* const new_page = alloc_page(page_type, page_size, flags);
+    ZPage* const new_page = alloc_page(page_type, page_size, partition_id, flags);
     if (new_page != nullptr) {
       // Allocate object before installing the new page
       addr = new_page->alloc_object(size);
@@ -128,6 +129,7 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 }
 
 zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
+                                                       uint32_t partition_id,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
   ZPage** shared_medium_page = _shared_medium_page.addr();
@@ -151,24 +153,24 @@ zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
     ZAllocationFlags non_blocking_flags = flags;
     non_blocking_flags.set_non_blocking();
 
-    addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMedium, size, non_blocking_flags);
+    addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMedium, partition_id, size, non_blocking_flags);
   }
 
   if (is_null(addr) && !flags.non_blocking()) {
     // The above allocation attempts failed and this allocation should stall
     // until memory is available. Redo the allocation with blocking enabled.
-    addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMedium, size, flags);
+    addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMedium, partition_id, size, flags);
   }
 
   return addr;
 }
 
-zaddress ZObjectAllocator::alloc_large_object(size_t size, ZAllocationFlags flags) {
+zaddress ZObjectAllocator::alloc_large_object(size_t size, uint32_t partition_id, ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
 
   // Allocate new large page
   const size_t page_size = align_up(size, ZGranuleSize);
-  ZPage* const page = alloc_page(ZPageType::large, page_size, flags);
+  ZPage* const page = alloc_page(ZPageType::large, page_size, partition_id, flags);
   if (page != nullptr) {
     // Allocate the object
     addr = page->alloc_object(size);
@@ -177,37 +179,38 @@ zaddress ZObjectAllocator::alloc_large_object(size_t size, ZAllocationFlags flag
   return addr;
 }
 
-zaddress ZObjectAllocator::alloc_medium_object(size_t size, ZAllocationFlags flags) {
-  return alloc_object_in_medium_page(size, flags);
+zaddress ZObjectAllocator::alloc_medium_object(size_t size, uint32_t partition_id, ZAllocationFlags flags) {
+  return alloc_object_in_medium_page(size, partition_id, flags);
 }
 
-zaddress ZObjectAllocator::alloc_small_object(size_t size, ZAllocationFlags flags) {
-  return alloc_object_in_shared_page(shared_small_page_addr(), ZPageType::small, ZPageSizeSmall, size, flags);
+zaddress ZObjectAllocator::alloc_small_object(size_t size, uint32_t partition_id, ZAllocationFlags flags) {
+  return alloc_object_in_shared_page(shared_small_page_addr(), ZPageType::small, ZPageSizeSmall, partition_id, size, flags);
 }
 
-zaddress ZObjectAllocator::alloc_object(size_t size, ZAllocationFlags flags) {
+zaddress ZObjectAllocator::alloc_object(size_t size, uint32_t partition_id, ZAllocationFlags flags) {
   if (size <= ZObjectSizeLimitSmall) {
     // Small
-    return alloc_small_object(size, flags);
+    return alloc_small_object(size, partition_id, flags);
   } else if (size <= ZObjectSizeLimitMedium) {
     // Medium
-    return alloc_medium_object(size, flags);
+    return alloc_medium_object(size, partition_id, flags);
   } else {
     // Large
-    return alloc_large_object(size, flags);
+    return alloc_large_object(size, partition_id, flags);
   }
 }
 
 zaddress ZObjectAllocator::alloc_object(size_t size) {
   const ZAllocationFlags flags;
-  return alloc_object(size, flags);
+  const uint32_t partition_id = ZNUMA::id();
+  return alloc_object(size, partition_id, flags);
 }
 
-zaddress ZObjectAllocator::alloc_object_for_relocation(size_t size) {
+zaddress ZObjectAllocator::alloc_object_for_relocation(size_t size, uint32_t partition_id) {
   ZAllocationFlags flags;
   flags.set_non_blocking();
 
-  return alloc_object(size, flags);
+  return alloc_object(size, partition_id, flags);
 }
 
 void ZObjectAllocator::undo_alloc_object_for_relocation(zaddress addr, size_t size) {

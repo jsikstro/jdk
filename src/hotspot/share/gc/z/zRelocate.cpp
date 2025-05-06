@@ -426,8 +426,10 @@ public:
     : _generation(generation),
       _in_place_count(0) {}
 
-  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
+  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
     ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
+
+    // TODO: Pass partition_id all the way down to the page allocator
     ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
@@ -468,7 +470,8 @@ class ZRelocateMediumAllocator {
 private:
   ZGeneration* const _generation;
   ZConditionLock     _lock;
-  ZPage*             _shared[ZAllocator::_relocation_allocators];
+  const size_t       _num_shared;
+  ZPage**            _shared;
   bool               _in_place;
   volatile size_t    _in_place_count;
 
@@ -476,16 +479,23 @@ public:
   ZRelocateMediumAllocator(ZGeneration* generation)
     : _generation(generation),
       _lock(),
+      _num_shared(ZAllocator::_relocation_allocators * ZNUMA::count()),
       _shared(),
       _in_place(false),
-      _in_place_count(0) {}
+      _in_place_count(0) {
+
+    _shared = NEW_C_HEAP_ARRAY(ZPage*, _num_shared, mtGC);
+    memset(_shared, 0, _num_shared * sizeof(ZPage*));
+  }
 
   ~ZRelocateMediumAllocator() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+    for (uint i = 0; i < _num_shared; ++i) {
       if (_shared[i] != nullptr) {
         retire_target_page(_generation, _shared[i]);
       }
     }
+
+    FREE_C_HEAP_ARRAY(ZPage*, _shared);
   }
 
   ZPage* shared(ZPageAge age) {
@@ -496,7 +506,7 @@ public:
     _shared[static_cast<uint>(age) - 1] = page;
   }
 
-  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
+  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
     ZLocker<ZConditionLock> locker(&_lock);
 
     // Wait for any ongoing in-place relocation to complete
@@ -912,7 +922,13 @@ private:
       // If this fails, it won't succeed for any partition.
       if (current_id == preferred_id) {
         const ZPageAge to_age = _forwarding->to_age();
-        ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target(to_age, current_id));
+        // TODO: Pass the current_id to the alloc function. For the MediumAllocator, we might get a page that is not on the same
+        // partition. In that case, the page must be installed correctly and we must adjust we current_id so that we allocate on
+        // that partition.
+
+        ZPage* target_page = target(to_age, current_id);
+        ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target_page, current_id);
+
         set_target(to_age, current_id, to_page);
         if (to_page != nullptr) {
           continue;

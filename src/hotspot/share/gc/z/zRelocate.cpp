@@ -523,7 +523,7 @@ public:
       return shared_target;
     }
 
-    // Since the target page cannot be allocatd to any more, this thread is
+    // Since the target page cannot be allocated to any more, this thread is
     // responsible for retiring it
     if (target != nullptr) {
       retire_target_page(_generation, target);
@@ -977,7 +977,7 @@ private:
       // from accessing the page, or its forwarding table, until it has been
       // released (relocation completed).
 
-      // Make sure the allocator knows we've started an in-place relocation.
+      // Make sure the allocator knows we're about to start an in-place relocation.
       _allocator->notify_in_place_relocation();
 
       const ZPageAge to_age = _forwarding->to_age();

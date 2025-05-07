@@ -70,6 +70,6 @@ void ZAllocatorForRelocation::undo_alloc_object(zaddress addr, size_t size) {
   _object_allocator.undo_alloc_object_for_relocation(addr, size);
 }
 
-ZPage* ZAllocatorForRelocation::alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return _object_allocator.alloc_page_for_relocation(type, size, flags);
+ZPage* ZAllocatorForRelocation::alloc_page_for_relocation(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags) {
+  return _object_allocator.alloc_page_for_relocation(type, size, partition_id, flags);
 }

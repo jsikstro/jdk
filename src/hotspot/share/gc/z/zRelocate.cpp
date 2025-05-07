@@ -386,7 +386,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size, uint32_t partition_id) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -397,7 +397,7 @@ static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, siz
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return allocator->alloc_page_for_relocation(type, size, flags);
+  return allocator->alloc_page_for_relocation(type, size, partition_id, flags);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {
@@ -428,9 +428,7 @@ public:
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
     ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
-
-    // TODO: Pass partition_id all the way down to the page allocator
-    ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
+    ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size(), partition_id);
 
     if (target != nullptr) {
       // Retire the old target page
@@ -531,8 +529,7 @@ public:
 
     // Try to allocate a new page on
     ZAllocatorForRelocation* const allocator = ZAllocator::relocation(to_age);
-    // TODO: Pass the partition id all the way to the page allocator.
-    ZPage* const new_target = alloc_page(allocator, forwarding->type(), forwarding->size());
+    ZPage* const new_target = alloc_page(allocator, forwarding->type(), forwarding->size(), partition_id);
     set_shared(to_age, partition_id, new_target);
     if (new_target != nullptr) {
       return new_target;

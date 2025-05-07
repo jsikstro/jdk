@@ -101,7 +101,7 @@ public:
   void mark_flush(Thread* thread);
 
   // Page allocation
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
+  ZPage* alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags, ZPageAge age);
   void undo_alloc_page(ZPage* page);
   void free_page(ZPage* page);
   size_t free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages);

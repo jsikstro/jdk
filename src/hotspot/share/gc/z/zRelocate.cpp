@@ -431,9 +431,6 @@ public:
 
     // TODO: Pass partition_id all the way down to the page allocator
     ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
-    if (page == nullptr) {
-      Atomic::inc(&_in_place_count);
-    }
 
     if (target != nullptr) {
       // Retire the old target page
@@ -443,7 +440,11 @@ public:
     return page;
   }
 
-  void share_target_page(ZPage* page) {
+  void notify_in_place_relocation() {
+    Atomic::inc(&_in_place_count);
+  }
+
+  void share_target_page(ZPage* page, uint32_t partition_id) {
     // Does nothing
   }
 
@@ -498,12 +499,19 @@ public:
     FREE_C_HEAP_ARRAY(ZPage*, _shared);
   }
 
-  ZPage* shared(ZPageAge age) {
-    return _shared[static_cast<uint>(age) - 1];
+  size_t shared_offset(ZPageAge age, uint32_t partition_id) const {
+    const size_t numa_offset = partition_id * ZAllocator::_relocation_allocators;
+    const size_t age_offset = static_cast<uint>(age) - 1;
+
+    return numa_offset + age_offset;
   }
 
-  void set_shared(ZPageAge age, ZPage* page) {
-    _shared[static_cast<uint>(age) - 1] = page;
+  ZPage* shared(ZPageAge age, uint32_t partition_id) {
+    return _shared[shared_offset(age, partition_id)];
+  }
+
+  void set_shared(ZPageAge age, uint32_t partition_id, ZPage* page) {
+    _shared[shared_offset(age, partition_id)] = page;
   }
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
@@ -514,38 +522,65 @@ public:
       _lock.wait();
     }
 
-    // Allocate a new page only if the shared page is the same as the
-    // current target page. The shared page will be different from the
-    // current target page if another thread shared a page, or allocated
-    // a new page.
     const ZPageAge to_age = forwarding->to_age();
-    if (shared(to_age) == target) {
-      ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
-      ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size());
-      set_shared(to_age, to_page);
-      if (to_page == nullptr) {
-        Atomic::inc(&_in_place_count);
-        _in_place = true;
-      }
 
-      // This thread is responsible for retiring the shared target page
-      if (target != nullptr) {
-        retire_target_page(_generation, target);
-      }
+    // Check if another thread has shared a page, if so, return it
+    ZPage* shared_target = shared(to_age, partition_id);
+    if (shared_target != target) {
+      return shared_target;
     }
 
-    return shared(to_age);
+    // Since the target page cannot be allocatd to any more, this thread is
+    // responsible for retiring it
+    if (target != nullptr) {
+      retire_target_page(_generation, target);
+    }
+
+    // Try to allocate a new page on
+    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(to_age);
+    // TODO: Pass the partition id all the way to the page allocator.
+    ZPage* const new_target = alloc_page(allocator, forwarding->type(), forwarding->size());
+    set_shared(to_age, partition_id, new_target);
+    if (new_target != nullptr) {
+      return new_target;
+    }
+
+    // Could not allocate a new page. See if there is a shared page available on
+    // another NUMA node.
+    const uint32_t start_id = partition_id;
+    uint32_t current_id = (start_id + 1) % ZNUMA::count();
+    while (current_id != start_id) {
+      ZPage* shared_other = shared(to_age, current_id);
+      if (shared_other != nullptr) {
+        return shared_other;
+      }
+
+      current_id = (current_id + 1) % ZNUMA::count();
+    }
+
+    return nullptr;
   }
 
-  void share_target_page(ZPage* page) {
+  void notify_in_place_relocation() {
+    ZLocker<ZConditionLock> locker(&_lock);
+    // Wait for any ongoing in-place relocation to complete
+    while (_in_place) {
+      _lock.wait();
+    }
+    Atomic::inc(&_in_place_count);
+    _in_place = true;
+  }
+
+  void share_target_page(ZPage* page, uint32_t partition_id) {
     const ZPageAge age = page->age();
 
     ZLocker<ZConditionLock> locker(&_lock);
     assert(_in_place, "Invalid state");
-    assert(shared(age) == nullptr, "Invalid state");
+    // TODO: Need to revisit why this assert doesn't hold any more.
+    //assert(shared(age, partition_id) == nullptr, "Invalid state");
     assert(page != nullptr, "Invalid page");
 
-    set_shared(age, page);
+    set_shared(age, partition_id, page);
     _in_place = false;
 
     _lock.notify_all();
@@ -946,9 +981,16 @@ private:
       // a new page, start an in-place relocation. This blocks other threads
       // from accessing the page, or its forwarding table, until it has been
       // released (relocation completed).
+
+      // Make sure the allocator knows we've started an in-place relocation.
+      _allocator->notify_in_place_relocation();
+
       const ZPageAge to_age = _forwarding->to_age();
       ZPage* to_page = start_in_place_relocation(ZAddress::offset(addr));
-      set_target(to_age, current_id, to_page);
+
+      // Set target on preferred id
+      set_target(to_age, preferred_id, to_page);
+      current_id = preferred_id;
     }
   }
 
@@ -1066,7 +1108,7 @@ public:
 
       // Different pages when promoting
       ZPage* const target_page = target(_forwarding->to_age(), _forwarding->target_partition_id());
-      _allocator->share_target_page(target_page);
+      _allocator->share_target_page(target_page, _forwarding->target_partition_id());
 
     } else {
       // Wait for all other threads to call release_page

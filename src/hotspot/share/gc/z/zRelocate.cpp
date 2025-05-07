@@ -515,13 +515,6 @@ public:
   }
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
-    ZLocker<ZConditionLock> locker(&_lock);
-
-    // Wait for any ongoing in-place relocation to complete
-    while (_in_place) {
-      _lock.wait();
-    }
-
     const ZPageAge to_age = forwarding->to_age();
 
     // Check if another thread has shared a page, if so, return it
@@ -563,10 +556,12 @@ public:
 
   void notify_in_place_relocation() {
     ZLocker<ZConditionLock> locker(&_lock);
+
     // Wait for any ongoing in-place relocation to complete
     while (_in_place) {
       _lock.wait();
     }
+
     Atomic::inc(&_in_place_count);
     _in_place = true;
   }

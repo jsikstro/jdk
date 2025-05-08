@@ -527,7 +527,7 @@ public:
       retire_target_page(_generation, target);
     }
 
-    // Try to allocate a new page on
+    // Try to allocate a new page on the preferred node
     ZAllocatorForRelocation* const allocator = ZAllocator::relocation(to_age, partition_id);
     ZPage* const new_target = alloc_page(allocator, forwarding->type(), forwarding->size(), partition_id);
     set_shared(to_age, partition_id, new_target);
@@ -935,37 +935,37 @@ private:
     const uint32_t preferred_id = _forwarding->target_partition_id();
     uint32_t current_id = preferred_id;
 
-    // The steps below are taken when an object is relocated:
-    //
-    // 1. Attempt to relocate to an already allocated page on the preferred node
-    // 2. If that fails, try to allocate a new page on the preferred node and
-    //    relocate the object there so that the object stays on the same node
-    // 3. If a page cannot be allocated, the object is relocated to another node
-    // 4. If there are no pages available on other nodes, start an in-place
-    //    relocation
-
     while (!try_relocate_object(addr, current_id)) {
-      // Attempt to allocate a new target page, only on the preferred partition.
-      // If this fails, it won't succeed for any partition.
+      // Only attempt to allocate a new target page once, and for the target partition only.
+      // If allocation fails, it won't succeed for any other partition.
       if (current_id == preferred_id) {
         const ZPageAge to_age = _forwarding->to_age();
-        // TODO: Pass the current_id to the alloc function. For the MediumAllocator, we might get a page that is not on the same
-        // partition. In that case, the page must be installed correctly and we must adjust we current_id so that we allocate on
-        // that partition.
 
         ZPage* target_page = target(to_age, current_id);
         ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target_page, current_id);
 
+        // We always put the page we got from the allocator on the current node
+        // even though the page might have ended up on another node, either during
+        // allocation or when using a shared Medium page on another node.
+        //
+        // In any case, when we can't get a page on the current node, objects must
+        // be migrated to another node. Since subsequent relocation attempts on the
+        // same node will also try to allocate a new page and fail in a similar fashion,
+        // we're better off setting the target to the current id to prevent unnecessary
+        // allocation attempts.
+        //
+        // The result might also be nullptr, when we can't get any page, which must be
+        // updated on the current partition since the target has just been retired.
         set_target(to_age, current_id, to_page);
+
         if (to_page != nullptr) {
           continue;
         }
       }
 
       // Move on and try to relocate to the next partition
-      const uint32_t next_partition_id = (current_id + 1) % ZNUMA::count();
-      if (next_partition_id != preferred_id) {
-        current_id = next_partition_id;
+      current_id = (current_id + 1) % ZNUMA::count();
+      if (current_id != preferred_id) {
         continue;
       }
 

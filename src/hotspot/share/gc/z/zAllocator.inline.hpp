@@ -28,13 +28,14 @@
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zHeap.hpp"
+#include "gc/z/zValue.inline.hpp"
 
 inline ZAllocatorEden* ZAllocator::eden() {
   return _eden;
 }
 
 inline ZAllocatorForRelocation* ZAllocator::relocation(ZPageAge page_age) {
-  return _relocation[static_cast<uint>(page_age) - 1];
+  return _relocation->get(0)[static_cast<uint>(page_age) - 1];
 }
 
 inline ZAllocatorForRelocation* ZAllocator::old() {

@@ -48,6 +48,7 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/javaThread.hpp"
 #include "utilities/debug.hpp"
+#include "gc/z/zValue.inline.hpp"
 
 static const ZStatCounter ZCounterUndoPageAllocation("Memory", "Undo Page Allocation", ZStatUnitOpsPerSecond);
 static const ZStatCounter ZCounterOutOfMemory("Memory", "Out Of Memory", ZStatUnitOpsPerSecond);

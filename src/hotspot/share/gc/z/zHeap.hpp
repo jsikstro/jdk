@@ -33,6 +33,7 @@
 #include "gc/z/zPageTable.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zServiceability.hpp"
+#include "gc/z/zValue.hpp"
 
 class OopFieldClosure;
 
@@ -48,7 +49,7 @@ private:
   ZPageTable              _page_table;
 
   ZAllocatorEden          _allocator_eden;
-  ZAllocatorForRelocation _allocator_relocation[ZAllocator::_relocation_allocators];
+  ZPerNUMA<ZAllocator::RelocatorArray> _allocator_relocation;
 
   ZServiceability         _serviceability;
 

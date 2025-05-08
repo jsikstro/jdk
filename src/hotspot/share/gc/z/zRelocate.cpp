@@ -327,7 +327,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
   // Allocate object
   const size_t size = ZUtils::object_size(from_addr);
 
-  ZAllocatorForRelocation* allocator = ZAllocator::relocation(forwarding->to_age());
+  ZAllocatorForRelocation* allocator = ZAllocator::relocation(forwarding->to_age(), forwarding->target_partition_id());
 
   const zaddress to_addr = allocator->alloc_object(size);
 
@@ -427,7 +427,7 @@ public:
       _in_place_count(0) {}
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
-    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
+    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age(), partition_id);
     ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size(), partition_id);
 
     if (target != nullptr) {
@@ -528,7 +528,7 @@ public:
     }
 
     // Try to allocate a new page on
-    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(to_age);
+    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(to_age, partition_id);
     ZPage* const new_target = alloc_page(allocator, forwarding->type(), forwarding->size(), partition_id);
     set_shared(to_age, partition_id, new_target);
     if (new_target != nullptr) {

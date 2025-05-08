@@ -48,8 +48,8 @@ protected:
 
 public:
   static ZAllocatorEden* eden();
-  static ZAllocatorForRelocation* relocation(ZPageAge page_age);
-  static ZAllocatorForRelocation* old();
+  static ZAllocatorForRelocation* relocation(ZPageAge page_age, uint32_t partition_id);
+  static ZAllocatorForRelocation* old(uint32_t partition_id);
 
   ZAllocator(ZPageAge age);
 

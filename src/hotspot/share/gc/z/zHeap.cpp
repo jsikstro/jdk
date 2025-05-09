@@ -40,6 +40,7 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
 #include "gc/z/zUtils.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVerify.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "logging/log.hpp"
@@ -48,7 +49,6 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/javaThread.hpp"
 #include "utilities/debug.hpp"
-#include "gc/z/zValue.inline.hpp"
 
 static const ZStatCounter ZCounterUndoPageAllocation("Memory", "Undo Page Allocation", ZStatUnitOpsPerSecond);
 static const ZStatCounter ZCounterOutOfMemory("Memory", "Out Of Memory", ZStatUnitOpsPerSecond);

@@ -37,14 +37,17 @@ class ZAllocator {
 public:
   static constexpr uint RelocationAllocators = ZPageAgeMax;
 
-  typedef ZAllocatorForRelocation RelocatorArray[ZAllocator::RelocationAllocators];
-  typedef ZAllocatorForRelocation* RelocatorPtrArray[ZAllocator::RelocationAllocators];
+  typedef ZPerNUMA<ZAllocatorForRelocation[ZAllocator::RelocationAllocators]> RelocatorArray;
+  typedef ZPerNUMA<ZAllocatorForRelocation*[ZAllocator::RelocationAllocators]> RelocatorPtrArray;
 
 protected:
   ZObjectAllocator _object_allocator;
 
-  static ZAllocatorEden*           _eden;
-  static ZPerNUMA<RelocatorPtrArray>* _relocation;
+  // The allocators below will be pointing to their actual storage in ZHeap.
+  // They are set to their intended location when the allocators are constructed
+  // in ZHeap.
+  static ZAllocatorEden*    _eden;
+  static RelocatorPtrArray* _relocation;
 
 public:
   static ZAllocatorEden* eden();

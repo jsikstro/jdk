@@ -25,8 +25,8 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zValue.inline.hpp"
 
-ZAllocatorEden*          ZAllocator::_eden;
-ZPerNUMA<ZAllocator::RelocatorPtrArray>* ZAllocator::_relocation;
+ZAllocatorEden* ZAllocator::_eden;
+ZAllocator::RelocatorPtrArray* ZAllocator::_relocation;
 
 ZAllocator::ZAllocator(ZPageAge age)
   : _object_allocator(age) {}
@@ -50,7 +50,7 @@ size_t ZAllocatorEden::remaining() const {
 
 ZPageAge ZAllocatorForRelocation::install() {
   if (_relocation == nullptr) {
-    _relocation = new ZPerNUMA<ZAllocator::RelocatorPtrArray>();
+    _relocation = new ZAllocator::RelocatorPtrArray();
   }
 
   for (uint32_t node = 0; node < ZNUMA::count(); node++) {

@@ -33,7 +33,6 @@
 #include "gc/z/zPageTable.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zServiceability.hpp"
-#include "gc/z/zValue.hpp"
 
 class OopFieldClosure;
 
@@ -43,20 +42,20 @@ class ZHeap {
   friend class VMStructs;
 
 private:
-  static ZHeap*           _heap;
+  static ZHeap*              _heap;
 
-  ZPageAllocator          _page_allocator;
-  ZPageTable              _page_table;
+  ZPageAllocator             _page_allocator;
+  ZPageTable                 _page_table;
 
-  ZAllocatorEden          _allocator_eden;
-  ZPerNUMA<ZAllocator::RelocatorArray> _allocator_relocation;
+  ZAllocatorEden             _allocator_eden;
+  ZAllocator::RelocatorArray _allocator_relocation;
 
-  ZServiceability         _serviceability;
+  ZServiceability            _serviceability;
 
-  ZGenerationOld          _old;
-  ZGenerationYoung        _young;
+  ZGenerationOld             _old;
+  ZGenerationYoung           _young;
 
-  bool                    _initialized;
+  bool                       _initialized;
 
 public:
   static ZHeap* heap();

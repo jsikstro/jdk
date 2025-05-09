@@ -35,10 +35,10 @@ class ZPage;
 
 class ZAllocator {
 public:
-  static constexpr uint _relocation_allocators = ZPageAgeMax;
+  static constexpr uint RelocationAllocators = ZPageAgeMax;
 
-  typedef ZAllocatorForRelocation RelocatorArray[ZAllocator::_relocation_allocators];
-  typedef ZAllocatorForRelocation* RelocatorPtrArray[ZAllocator::_relocation_allocators];
+  typedef ZAllocatorForRelocation RelocatorArray[ZAllocator::RelocationAllocators];
+  typedef ZAllocatorForRelocation* RelocatorPtrArray[ZAllocator::RelocationAllocators];
 
 protected:
   ZObjectAllocator _object_allocator;

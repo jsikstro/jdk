@@ -479,7 +479,7 @@ public:
   ZRelocateMediumAllocator(ZGeneration* generation)
     : _generation(generation),
       _lock(),
-      _num_shared(ZAllocator::_relocation_allocators * ZNUMA::count()),
+      _num_shared(ZAllocator::RelocationAllocators * ZNUMA::count()),
       _shared(),
       _in_place(false),
       _in_place_count(0) {
@@ -499,7 +499,7 @@ public:
   }
 
   size_t shared_offset(ZPageAge age, uint32_t partition_id) const {
-    const size_t numa_offset = partition_id * ZAllocator::_relocation_allocators;
+    const size_t numa_offset = partition_id * ZAllocator::RelocationAllocators;
     const size_t age_offset = static_cast<uint>(age) - 1;
 
     return numa_offset + age_offset;
@@ -615,7 +615,7 @@ private:
   ZStringDedupContext _string_dedup_context;
 
   size_t target_offset(ZPageAge age, uint32_t partition_id) const {
-    const size_t numa_offset = partition_id * ZAllocator::_relocation_allocators;
+    const size_t numa_offset = partition_id * ZAllocator::RelocationAllocators;
     const size_t age_offset = static_cast<uint>(age) - 1;
 
     return numa_offset + age_offset;
@@ -994,7 +994,7 @@ public:
   ZRelocateWork(Allocator* allocator, ZGeneration* generation)
     : _allocator(allocator),
       _forwarding(nullptr),
-      _num_targets(ZAllocator::_relocation_allocators * ZNUMA::count()),
+      _num_targets(ZAllocator::RelocationAllocators * ZNUMA::count()),
       _target(),
       _generation(generation),
       _other_promoted(0),

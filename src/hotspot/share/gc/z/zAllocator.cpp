@@ -54,7 +54,7 @@ ZPageAge ZAllocatorForRelocation::install() {
   }
 
   for (uint32_t node = 0; node < ZNUMA::count(); node++) {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+    for (uint i = 0; i < ZAllocator::RelocationAllocators; ++i) {
       if (_relocation->get(node)[i] == nullptr) {
         _relocation->get(node)[i] = this;
         return static_cast<ZPageAge>(i + 1);

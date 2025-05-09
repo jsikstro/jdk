@@ -438,8 +438,9 @@ public:
     return page;
   }
 
-  void notify_in_place_relocation() {
+  bool should_start_in_place_relocation(ZPageAge age, uint32_t partition_id) {
     Atomic::inc(&_in_place_count);
+    return true;
   }
 
   void share_target_page(ZPage* page, uint32_t partition_id) {
@@ -551,7 +552,7 @@ public:
     return nullptr;
   }
 
-  void notify_in_place_relocation() {
+  bool should_start_in_place_relocation(ZPageAge age, uint32_t partition_id) {
     ZLocker<ZConditionLock> locker(&_lock);
 
     // Wait for any ongoing in-place relocation to complete
@@ -559,8 +560,15 @@ public:
       _lock.wait();
     }
 
+    // Another thread shared a page, use that instead of relocating in-place.
+    if (shared(age, partition_id) != nullptr) {
+      return false;
+    }
+
     Atomic::inc(&_in_place_count);
     _in_place = true;
+
+    return true;
   }
 
   void share_target_page(ZPage* page, uint32_t partition_id) {
@@ -568,8 +576,7 @@ public:
 
     ZLocker<ZConditionLock> locker(&_lock);
     assert(_in_place, "Invalid state");
-    // TODO: Need to revisit why this assert doesn't hold any more.
-    //assert(shared(age, partition_id) == nullptr, "Invalid state");
+    assert(shared(age, partition_id) == nullptr, "Invalid state");
     assert(page != nullptr, "Invalid page");
 
     set_shared(age, partition_id, page);
@@ -969,20 +976,17 @@ private:
         continue;
       }
 
+      const ZPageAge to_age = _forwarding->to_age();
+
+      if(!_allocator->should_start_in_place_relocation(to_age, current_id)) {
+        continue;
+      }
       // If there are no pages available to relocate to and we cannot allocate
       // a new page, start an in-place relocation. This blocks other threads
       // from accessing the page, or its forwarding table, until it has been
       // released (relocation completed).
-
-      // Make sure the allocator knows we're about to start an in-place relocation.
-      _allocator->notify_in_place_relocation();
-
-      const ZPageAge to_age = _forwarding->to_age();
       ZPage* to_page = start_in_place_relocation(ZAddress::offset(addr));
-
-      // Set target on preferred id
-      set_target(to_age, preferred_id, to_page);
-      current_id = preferred_id;
+      set_target(to_age, current_id, to_page);
     }
   }
 

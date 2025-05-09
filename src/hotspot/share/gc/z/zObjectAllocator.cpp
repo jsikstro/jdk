@@ -202,7 +202,8 @@ zaddress ZObjectAllocator::alloc_object(size_t size, uint32_t partition_id, ZAll
 
 zaddress ZObjectAllocator::alloc_object(size_t size) {
   const ZAllocationFlags flags;
-  return alloc_object(size, -1u, flags);
+  const uint32_t partition_id = ZNUMA::id();
+  return alloc_object(size, partition_id, flags);
 }
 
 zaddress ZObjectAllocator::alloc_object_for_relocation(size_t size, uint32_t partition_id) {

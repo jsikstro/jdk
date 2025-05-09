@@ -978,7 +978,7 @@ private:
 
       const ZPageAge to_age = _forwarding->to_age();
 
-      if(!_allocator->should_start_in_place_relocation(to_age, current_id)) {
+      if (!_allocator->should_start_in_place_relocation(to_age, current_id)) {
         continue;
       }
       // If there are no pages available to relocate to and we cannot allocate
@@ -1103,8 +1103,9 @@ public:
       page->log_msg(" (relocate page done in-place)");
 
       // Different pages when promoting
-      ZPage* const target_page = target(_forwarding->to_age(), _forwarding->target_partition_id());
-      _allocator->share_target_page(target_page, _forwarding->target_partition_id());
+      const uint32_t partition_id = _forwarding->target_partition_id();
+      ZPage* const target_page = target(_forwarding->to_age(), partition_id);
+      _allocator->share_target_page(target_page, partition_id);
 
     } else {
       // Wait for all other threads to call release_page

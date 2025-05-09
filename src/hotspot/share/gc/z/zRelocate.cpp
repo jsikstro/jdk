@@ -397,7 +397,7 @@ static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, siz
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return allocator->alloc_page_for_relocation(type, size, partition_id, flags);
+  return allocator->alloc_page(type, size, partition_id, flags);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {

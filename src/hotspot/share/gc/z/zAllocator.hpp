@@ -83,7 +83,7 @@ public:
   zaddress alloc_object(size_t size, uint32_t partition_id);
   void undo_alloc_object(zaddress addr, size_t size);
 
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags);
+  ZPage* alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags);
 };
 
 #endif // SHARE_GC_Z_ZALLOCATOR_HPP

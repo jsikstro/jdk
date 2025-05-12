@@ -839,7 +839,6 @@ void ZGenerationYoung::mark_start() {
 
   // Retire allocating pages
   ZAllocator::eden()->retire_pages();
-
   for (ZPageAge i = ZPageAge::survivor1; i <= ZPageAge::survivor14; i = static_cast<ZPageAge>(static_cast<uint>(i) + 1)) {
     ZAllocator::relocation(i)->retire_pages();
   }

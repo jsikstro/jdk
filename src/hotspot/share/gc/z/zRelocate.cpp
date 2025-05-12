@@ -329,7 +329,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
 
   ZAllocatorForRelocation* allocator = ZAllocator::relocation(forwarding->to_age());
 
-  const zaddress to_addr = allocator->alloc_object(size, forwarding->target_partition_id());
+  const zaddress to_addr = allocator->alloc_object(size);
 
   if (is_null(to_addr)) {
     // Allocation failed

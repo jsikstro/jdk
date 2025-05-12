@@ -42,7 +42,7 @@ public:
 protected:
   ZObjectAllocator _object_allocator;
 
-  static ZAllocatorEden* _eden;
+  static ZAllocatorEden*          _eden;
   static ZAllocatorForRelocation* _relocation[ZAllocator::RelocationAllocators];
 
 public:
@@ -76,7 +76,7 @@ public:
   ZAllocatorForRelocation();
 
   // Relocation
-  zaddress alloc_object(size_t size, uint32_t partition_id);
+  zaddress alloc_object(size_t size);
   void undo_alloc_object(zaddress addr, size_t size);
 
   ZPage* alloc_page(ZPageType type, size_t size, uint32_t partition_id, ZAllocationFlags flags);

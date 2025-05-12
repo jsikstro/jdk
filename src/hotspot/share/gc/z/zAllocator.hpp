@@ -28,8 +28,6 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
-#include "utilities/deferred.hpp"
-#include "utilities/valueObjArray.hpp"
 
 class ZAllocatorEden;
 class ZAllocatorForRelocation;

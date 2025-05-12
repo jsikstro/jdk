@@ -23,10 +23,9 @@
 
 #include "gc/z/zAllocator.hpp"
 #include "gc/z/zObjectAllocator.hpp"
-#include "gc/z/zValue.inline.hpp"
 
-ZAllocatorEden* ZAllocator::_eden;
-ZAllocator::RelocatorPtrArray* ZAllocator::_relocation;
+ZAllocatorEden*          ZAllocator::_eden;
+ZAllocatorForRelocation* ZAllocator::_relocation[ZAllocator::RelocationAllocators];
 
 ZAllocator::ZAllocator(ZPageAge age)
   : _object_allocator(age) {}
@@ -49,20 +48,15 @@ size_t ZAllocatorEden::remaining() const {
 }
 
 ZPageAge ZAllocatorForRelocation::install() {
-  if (_relocation == nullptr) {
-    _relocation = new ZAllocator::RelocatorPtrArray();
-  }
-
-  for (uint32_t node = 0; node < ZNUMA::count(); node++) {
-    for (uint i = 0; i < ZAllocator::RelocationAllocators; ++i) {
-      if (_relocation->get(node)[i] == nullptr) {
-        _relocation->get(node)[i] = this;
-        return static_cast<ZPageAge>(i + 1);
-      }
+  for (uint i = 0; i < ZAllocator::RelocationAllocators; ++i) {
+    if (_relocation[i] == nullptr) {
+      _relocation[i] = this;
+      return static_cast<ZPageAge>(i + 1);
     }
   }
 
   ShouldNotReachHere();
+  return ZPageAge::eden;
 }
 
 ZAllocatorForRelocation::ZAllocatorForRelocation()

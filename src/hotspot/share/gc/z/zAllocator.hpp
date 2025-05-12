@@ -28,6 +28,8 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "utilities/deferred.hpp"
+#include "utilities/valueObjArray.hpp"
 
 class ZAllocatorEden;
 class ZAllocatorForRelocation;
@@ -37,22 +39,16 @@ class ZAllocator {
 public:
   static constexpr uint RelocationAllocators = ZPageAgeMax;
 
-  typedef ZPerNUMA<ZAllocatorForRelocation[ZAllocator::RelocationAllocators]> RelocatorArray;
-  typedef ZPerNUMA<ZAllocatorForRelocation*[ZAllocator::RelocationAllocators]> RelocatorPtrArray;
-
 protected:
   ZObjectAllocator _object_allocator;
 
-  // The allocators below will be pointing to their actual storage in ZHeap.
-  // They are set to their intended location when the allocators are constructed
-  // in ZHeap.
-  static ZAllocatorEden*    _eden;
-  static RelocatorPtrArray* _relocation;
+  static ZAllocatorEden* _eden;
+  static ZAllocatorForRelocation* _relocation[ZAllocator::RelocationAllocators];
 
 public:
   static ZAllocatorEden* eden();
-  static ZAllocatorForRelocation* relocation(ZPageAge page_age, uint32_t partition_id);
-  static ZAllocatorForRelocation* old(uint32_t partition_id);
+  static ZAllocatorForRelocation* relocation(ZPageAge page_age);
+  static ZAllocatorForRelocation* old();
 
   ZAllocator(ZPageAge age);
 

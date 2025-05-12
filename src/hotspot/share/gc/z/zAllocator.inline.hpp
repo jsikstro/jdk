@@ -28,18 +28,17 @@
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zHeap.hpp"
-#include "gc/z/zValue.inline.hpp"
 
 inline ZAllocatorEden* ZAllocator::eden() {
   return _eden;
 }
 
-inline ZAllocatorForRelocation* ZAllocator::relocation(ZPageAge page_age, uint32_t partition_id) {
-  return _relocation->get(partition_id)[static_cast<uint>(page_age) - 1];
+inline ZAllocatorForRelocation* ZAllocator::relocation(ZPageAge page_age) {
+  return _relocation[static_cast<uint>(page_age) - 1];
 }
 
-inline ZAllocatorForRelocation* ZAllocator::old(uint32_t partition_id) {
-  return relocation(ZPageAge::old, partition_id);
+inline ZAllocatorForRelocation* ZAllocator::old() {
+  return relocation(ZPageAge::old);
 }
 
 inline zaddress ZAllocatorEden::alloc_tlab(size_t size) {

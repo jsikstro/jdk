@@ -23,6 +23,7 @@
 
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zAllocator.hpp"
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zCPU.hpp"
 #include "gc/z/zDriver.hpp"
@@ -68,6 +69,7 @@ void ZInitialize::initialize(ZBarrierSet* barrier_set) {
   ZJNICritical::initialize();
   ZDriver::initialize();
   ZGCIdPrinter::initialize();
+  ZAllocator::initialize();
 
   pd_initialize();
 }

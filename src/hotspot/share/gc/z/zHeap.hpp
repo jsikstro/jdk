@@ -48,9 +48,6 @@ private:
   ZPageAllocator          _page_allocator;
   ZPageTable              _page_table;
 
-  ZAllocatorEden          _allocator_eden;
-  ZAllocatorForRelocation _allocator_relocation[ZAllocator::_relocation_allocators];
-
   ZServiceability         _serviceability;
 
   ZGenerationOld          _old;

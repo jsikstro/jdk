@@ -326,7 +326,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
   // Allocate object
   const size_t size = ZUtils::object_size(from_addr);
 
-  ZAllocatorForRelocation* allocator = ZAllocator::relocation(forwarding->to_age());
+  ZAllocator* allocator = ZAllocator::allocator(forwarding->to_age());
 
   const zaddress to_addr = allocator->alloc_object(size);
 
@@ -343,7 +343,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
 
   if (to_addr_final != to_addr) {
     // Already relocated, try undo allocation
-    allocator->undo_alloc_object(to_addr, size);
+    allocator->undo_alloc_object_for_relocation(to_addr, size);
   }
 
   return to_addr_final;
@@ -385,7 +385,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZAllocator* allocator, ZPageType type, size_t size) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -396,7 +396,7 @@ static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, siz
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return allocator->alloc_page_for_relocation(type, size, flags);
+  return allocator->alloc_page(type, size, flags);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {
@@ -426,7 +426,7 @@ public:
       _in_place_count(0) {}
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
-    ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
+    ZAllocator* const allocator = ZAllocator::allocator(forwarding->to_age());
     ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
@@ -467,7 +467,7 @@ class ZRelocateMediumAllocator {
 private:
   ZGeneration* const _generation;
   ZConditionLock     _lock;
-  ZPage*             _shared[ZAllocator::_relocation_allocators];
+  ZPage*             _shared[ZAllocator::NumRelocationAllocators];
   bool               _in_place;
   volatile size_t    _in_place_count;
 
@@ -480,7 +480,7 @@ public:
       _in_place_count(0) {}
 
   ~ZRelocateMediumAllocator() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+    for (uint i = 0; i < ZAllocator::NumRelocationAllocators; ++i) {
       if (_shared[i] != nullptr) {
         retire_target_page(_generation, _shared[i]);
       }
@@ -488,11 +488,11 @@ public:
   }
 
   ZPage* shared(ZPageAge age) {
-    return _shared[static_cast<uint>(age) - 1];
+    return _shared[untype(age) - 1];
   }
 
   void set_shared(ZPageAge age, ZPage* page) {
-    _shared[static_cast<uint>(age) - 1] = page;
+    _shared[untype(age) - 1] = page;
   }
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
@@ -509,7 +509,7 @@ public:
     // a new page.
     const ZPageAge to_age = forwarding->to_age();
     if (shared(to_age) == target) {
-      ZAllocatorForRelocation* const allocator = ZAllocator::relocation(forwarding->to_age());
+      ZAllocator* const allocator = ZAllocator::allocator(forwarding->to_age());
       ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size());
       set_shared(to_age, to_page);
       if (to_page == nullptr) {
@@ -562,7 +562,7 @@ class ZRelocateWork : public StackObj {
 private:
   Allocator* const    _allocator;
   ZForwarding*        _forwarding;
-  ZPage*              _target[ZAllocator::_relocation_allocators];
+  ZPage*              _target[ZAllocator::NumRelocationAllocators];
   ZGeneration* const  _generation;
   size_t              _other_promoted;
   size_t              _other_compacted;
@@ -570,11 +570,11 @@ private:
 
 
   ZPage* target(ZPageAge age) {
-    return _target[static_cast<uint>(age) - 1];
+    return _target[untype(age) - 1];
   }
 
   void set_target(ZPageAge age, ZPage* page) {
-    _target[static_cast<uint>(age) - 1] = page;
+    _target[untype(age) - 1] = page;
   }
 
   size_t object_alignment() const {
@@ -916,7 +916,7 @@ public:
       _other_compacted(0) {}
 
   ~ZRelocateWork() {
-    for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
+    for (uint i = 0; i < ZAllocator::NumRelocationAllocators; ++i) {
       _allocator->free_target_page(_target[i]);
     }
     // Report statistics on-behalf of non-worker threads
@@ -1232,7 +1232,7 @@ ZPageAge ZRelocate::compute_to_age(ZPageAge from_age) {
     return ZPageAge::old;
   }
 
-  const uint age = static_cast<uint>(from_age);
+  const uint age = untype(from_age);
   if (age >= ZGeneration::young()->tenuring_threshold()) {
     return ZPageAge::old;
   }

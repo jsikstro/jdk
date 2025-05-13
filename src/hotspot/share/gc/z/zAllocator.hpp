@@ -28,55 +28,44 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "utilities/deferred.hpp"
+#include "utilities/valueObjArray.hpp"
 
-class ZAllocatorEden;
-class ZAllocatorForRelocation;
 class ZPage;
 
 class ZAllocator {
 public:
-  static constexpr uint _relocation_allocators = static_cast<uint>(ZPageAge::old);
+  static constexpr uint NumAllocators = ZPageAgeCount;
+  static constexpr uint NumRelocationAllocators = NumAllocators - 1;
 
-protected:
+  using Allocators = Deferred<ValueObjArray<ZAllocator, NumAllocators>>;
+
+private:
   ZObjectAllocator _object_allocator;
 
-  static ZAllocatorEden*          _eden;
-  static ZAllocatorForRelocation* _relocation[ZAllocator::_relocation_allocators];
+  static Allocators _allocators;
 
 public:
-  static ZAllocatorEden* eden();
-  static ZAllocatorForRelocation* relocation(ZPageAge page_age);
-  static ZAllocatorForRelocation* old();
+  static ZAllocator* allocator(ZPageAge page_age);
+  static ZAllocator* eden();
+
+  static void initialize();
 
   ZAllocator(ZPageAge age);
 
-  void retire_pages();
-};
+  static void retire_pages(ZPageAgeRange range);
 
-class ZAllocatorEden : public ZAllocator {
-public:
-  ZAllocatorEden();
+  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
 
   // Mutator allocation
   zaddress alloc_tlab(size_t size);
   zaddress alloc_object(size_t size);
 
+  // Relocation
+  void undo_alloc_object_for_relocation(zaddress addr, size_t size);
+
   // Statistics
   size_t remaining() const;
-};
-
-class ZAllocatorForRelocation : public ZAllocator {
-private:
-  ZPageAge install();
-
-public:
-  ZAllocatorForRelocation();
-
-  // Relocation
-  zaddress alloc_object(size_t size);
-  void undo_alloc_object(zaddress addr, size_t size);
-
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
 };
 
 #endif // SHARE_GC_Z_ZALLOCATOR_HPP

@@ -27,6 +27,7 @@
 #include "gc/shared/locationPrinter.hpp"
 #include "gc/shared/tlab_globals.hpp"
 #include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zAllocator.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zGlobals.hpp"
@@ -57,8 +58,6 @@ ZHeap* ZHeap::_heap = nullptr;
 ZHeap::ZHeap()
   : _page_allocator(MinHeapSize, InitialHeapSize, SoftMaxHeapSize, MaxHeapSize),
     _page_table(),
-    _allocator_eden(),
-    _allocator_relocation(),
     _serviceability(InitialHeapSize, min_capacity(), max_capacity()),
     _old(&_page_table, &_page_allocator),
     _young(&_page_table, _old.forwarding_table(), &_page_allocator),
@@ -144,7 +143,7 @@ size_t ZHeap::max_tlab_size() const {
 }
 
 size_t ZHeap::unsafe_max_tlab_alloc() const {
-  size_t size = _allocator_eden.remaining();
+  size_t size = ZAllocator::eden()->remaining();
 
   if (size < MinTLABSize) {
     // The remaining space in the allocator is not enough to

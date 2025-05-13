@@ -26,34 +26,33 @@
 
 #include "gc/z/zAllocator.hpp"
 
-#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zHeap.hpp"
 
-inline ZAllocatorEden* ZAllocator::eden() {
-  return _eden;
+inline ZAllocator* ZAllocator::allocator(ZPageAge page_age) {
+  return _allocators->at(untype(page_age));
 }
 
-inline ZAllocatorForRelocation* ZAllocator::relocation(ZPageAge page_age) {
-  return _relocation[static_cast<uint>(page_age) - 1];
+inline ZAllocator* ZAllocator::eden() {
+  return allocator(ZPageAge::eden);
 }
 
-inline ZAllocatorForRelocation* ZAllocator::old() {
-  return relocation(ZPageAge::old);
-}
-
-inline zaddress ZAllocatorEden::alloc_tlab(size_t size) {
+inline zaddress ZAllocator::alloc_tlab(size_t size) {
   guarantee(size <= ZHeap::heap()->max_tlab_size(), "TLAB too large");
-  return _object_allocator.alloc_object(size);
+
+  ZAllocationFlags flags;
+  return _object_allocator.alloc_object(size, flags);
 }
 
-inline zaddress ZAllocatorEden::alloc_object(size_t size) {
-  const zaddress addr = _object_allocator.alloc_object(size);
+inline zaddress ZAllocator::alloc_object(size_t size) {
+  const ZPageAge age = _object_allocator.age();
 
-  if (is_null(addr)) {
-    ZHeap::heap()->out_of_memory();
+  ZAllocationFlags flags;
+  if (age != ZPageAge::eden) {
+    // Object allocation for relocation should not block
+    flags.set_non_blocking();
   }
 
-  return addr;
+  return _object_allocator.alloc_object(size, flags);
 }
 
 #endif // SHARE_GC_Z_ZALLOCATOR_INLINE_HPP

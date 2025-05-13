@@ -45,7 +45,6 @@ private:
   ZPage** shared_small_page_addr();
   ZPage* const* shared_small_page_addr() const;
 
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
   void undo_alloc_page(ZPage* page);
 
   // Allocate an object in a shared page. Allocate and
@@ -62,19 +61,17 @@ private:
   zaddress alloc_large_object(size_t size, ZAllocationFlags flags);
   zaddress alloc_medium_object(size_t size, ZAllocationFlags flags);
   zaddress alloc_small_object(size_t size, ZAllocationFlags flags);
-  zaddress alloc_object(size_t size, ZAllocationFlags flags);
 
 public:
   ZObjectAllocator(ZPageAge age);
 
   // Mutator allocation
-  zaddress alloc_object(size_t size);
+  zaddress alloc_object(size_t size, ZAllocationFlags flags);
 
   // Relocation
-  zaddress alloc_object_for_relocation(size_t size);
   void undo_alloc_object_for_relocation(zaddress addr, size_t size);
 
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
 
   ZPageAge age() const;
 

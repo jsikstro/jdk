@@ -59,10 +59,6 @@ ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlag
   return ZHeap::heap()->alloc_page(type, size, flags, _age);
 }
 
-ZPage* ZObjectAllocator::alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return ZHeap::heap()->alloc_page(type, size, flags, _age);
-}
-
 void ZObjectAllocator::undo_alloc_page(ZPage* page) {
   ZHeap::heap()->undo_alloc_page(page);
 }
@@ -185,18 +181,6 @@ zaddress ZObjectAllocator::alloc_object(size_t size, ZAllocationFlags flags) {
     // Large
     return alloc_large_object(size, flags);
   }
-}
-
-zaddress ZObjectAllocator::alloc_object(size_t size) {
-  const ZAllocationFlags flags;
-  return alloc_object(size, flags);
-}
-
-zaddress ZObjectAllocator::alloc_object_for_relocation(size_t size) {
-  ZAllocationFlags flags;
-  flags.set_non_blocking();
-
-  return alloc_object(size, flags);
 }
 
 void ZObjectAllocator::undo_alloc_object_for_relocation(zaddress addr, size_t size) {

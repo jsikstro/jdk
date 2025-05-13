@@ -1499,7 +1499,7 @@ void ZStatRelocation::print_page_summary() {
     summary.relocate += stats.relocate();
   };
 
-  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+  for (uint i = 0; i < ZPageAgeCount; ++i) {
     const ZPageAge age = static_cast<ZPageAge>(i);
 
     account_page_size(small_summary, _selector_stats.small(age));
@@ -1557,12 +1557,12 @@ void ZStatRelocation::print_age_table() {
            .center("Large")
            .end());
 
-  size_t live[ZPageAgeMax + 1] = {};
-  size_t total[ZPageAgeMax + 1] = {};
+  size_t live[ZPageAgeCount] = {};
+  size_t total[ZPageAgeCount] = {};
 
   uint oldest_none_empty_age = 0;
 
-  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+  for (uint i = 0; i < ZPageAgeCount; ++i) {
     ZPageAge age = static_cast<ZPageAge>(i);
     auto summarize_pages = [&](const ZRelocationSetSelectorGroupStats& stats) {
       live[i] += stats.live();
@@ -1791,7 +1791,7 @@ void ZStatHeap::at_select_relocation_set(const ZRelocationSetSelectorStats& stat
   ZLocker<ZLock> locker(&_stat_lock);
 
   size_t live = 0;
-  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+  for (uint i = 0; i < ZPageAgeCount; ++i) {
     const ZPageAge age = static_cast<ZPageAge>(i);
     live += stats.small(age).live() + stats.medium(age).live() + stats.large(age).live();
   }

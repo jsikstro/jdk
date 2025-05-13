@@ -24,48 +24,30 @@
 #include "gc/z/zAllocator.hpp"
 #include "gc/z/zObjectAllocator.hpp"
 
-ZAllocatorEden*          ZAllocator::_eden;
-ZAllocatorForRelocation* ZAllocator::_relocation[ZAllocator::_relocation_allocators];
+ZAllocator::Allocators ZAllocator::_allocators;
+
+void ZAllocator::initialize() {
+  ZPageAgeRange::Iterator it = ZPageAgeRange().begin();
+  _allocators.initialize(it);
+}
 
 ZAllocator::ZAllocator(ZPageAge age)
   : _object_allocator(age) {}
 
-void ZAllocator::retire_pages() {
-  _object_allocator.retire_pages();
+void ZAllocator::retire_pages(ZPageAgeRange range) {
+  for (ZPageAge age : range) {
+    _allocators->at(untype(age))->_object_allocator.retire_pages();
+  }
 }
 
-ZAllocatorEden::ZAllocatorEden()
-  : ZAllocator(ZPageAge::eden) {
-  ZAllocator::_eden = this;
-}
-
-size_t ZAllocatorEden::remaining() const {
+size_t ZAllocator::remaining() const {
   return _object_allocator.remaining();
 }
 
-ZPageAge ZAllocatorForRelocation::install() {
-  for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {
-    if (_relocation[i] == nullptr) {
-      _relocation[i] = this;
-      return static_cast<ZPageAge>(i + 1);
-    }
-  }
-
-  ShouldNotReachHere();
-  return ZPageAge::eden;
-}
-
-ZAllocatorForRelocation::ZAllocatorForRelocation()
-  : ZAllocator(install()) {}
-
-zaddress ZAllocatorForRelocation::alloc_object(size_t size) {
-  return _object_allocator.alloc_object_for_relocation(size);
-}
-
-void ZAllocatorForRelocation::undo_alloc_object(zaddress addr, size_t size) {
+void ZAllocator::undo_alloc_object_for_relocation(zaddress addr, size_t size) {
   _object_allocator.undo_alloc_object_for_relocation(addr, size);
 }
 
-ZPage* ZAllocatorForRelocation::alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return _object_allocator.alloc_page_for_relocation(type, size, flags);
+ZPage* ZAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
+  return _object_allocator.alloc_page(type, size, flags);
 }

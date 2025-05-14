@@ -25,9 +25,9 @@
 #define SHARE_GC_Z_ZHEAP_HPP
 
 #include "gc/z/zAllocationFlags.hpp"
-#include "gc/z/zAllocator.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zGeneration.hpp"
+#include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zPageTable.hpp"

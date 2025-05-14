@@ -25,7 +25,6 @@
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAbort.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zAllocator.inline.hpp"
 #include "gc/z/zBarrier.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zForwarding.inline.hpp"
@@ -33,6 +32,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
 #include "gc/z/zIterator.inline.hpp"
+#include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocate.hpp"
@@ -326,7 +326,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
   // Allocate object
   const size_t size = ZUtils::object_size(from_addr);
 
-  ZAllocator* allocator = ZAllocator::allocator(forwarding->to_age());
+  ZObjectAllocator* allocator = ZObjectAllocator::allocator(forwarding->to_age());
 
   const zaddress to_addr = allocator->alloc_object(size);
 
@@ -343,7 +343,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
 
   if (to_addr_final != to_addr) {
     // Already relocated, try undo allocation
-    allocator->undo_alloc_object_for_relocation(to_addr, size);
+    allocator->undo_alloc_object(to_addr, size);
   }
 
   return to_addr_final;
@@ -385,7 +385,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZAllocator* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZObjectAllocator* allocator, ZPageType type, size_t size) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -426,7 +426,7 @@ public:
       _in_place_count(0) {}
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
-    ZAllocator* const allocator = ZAllocator::allocator(forwarding->to_age());
+    ZObjectAllocator* const allocator = ZObjectAllocator::allocator(forwarding->to_age());
     ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
@@ -467,7 +467,7 @@ class ZRelocateMediumAllocator {
 private:
   ZGeneration* const _generation;
   ZConditionLock     _lock;
-  ZPage*             _shared[ZAllocator::NumRelocationAllocators];
+  ZPage*             _shared[ZObjectAllocator::NumRelocationAllocators];
   bool               _in_place;
   volatile size_t    _in_place_count;
 
@@ -480,7 +480,7 @@ public:
       _in_place_count(0) {}
 
   ~ZRelocateMediumAllocator() {
-    for (uint i = 0; i < ZAllocator::NumRelocationAllocators; ++i) {
+    for (uint i = 0; i < ZObjectAllocator::NumRelocationAllocators; ++i) {
       if (_shared[i] != nullptr) {
         retire_target_page(_generation, _shared[i]);
       }
@@ -509,7 +509,7 @@ public:
     // a new page.
     const ZPageAge to_age = forwarding->to_age();
     if (shared(to_age) == target) {
-      ZAllocator* const allocator = ZAllocator::allocator(forwarding->to_age());
+      ZObjectAllocator* const allocator = ZObjectAllocator::allocator(forwarding->to_age());
       ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size());
       set_shared(to_age, to_page);
       if (to_page == nullptr) {
@@ -562,7 +562,7 @@ class ZRelocateWork : public StackObj {
 private:
   Allocator* const    _allocator;
   ZForwarding*        _forwarding;
-  ZPage*              _target[ZAllocator::NumRelocationAllocators];
+  ZPage*              _target[ZObjectAllocator::NumRelocationAllocators];
   ZGeneration* const  _generation;
   size_t              _other_promoted;
   size_t              _other_compacted;
@@ -916,7 +916,7 @@ public:
       _other_compacted(0) {}
 
   ~ZRelocateWork() {
-    for (uint i = 0; i < ZAllocator::NumRelocationAllocators; ++i) {
+    for (uint i = 0; i < ZObjectAllocator::NumRelocationAllocators; ++i) {
       _allocator->free_target_page(_target[i]);
     }
     // Report statistics on-behalf of non-worker threads

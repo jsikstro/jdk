@@ -1237,7 +1237,7 @@ ZPageAge ZRelocate::compute_to_age(ZPageAge from_age) {
     return ZPageAge::old;
   }
 
-  return static_cast<ZPageAge>(age + 1);
+  return to_zpageage(age + 1);
 }
 
 class ZFlipAgePagesTask : public ZTask {

@@ -1578,7 +1578,7 @@ void ZStatRelocation::print_age_table() {
   }
 
   for (uint i = 0; i <= oldest_none_empty_age; ++i) {
-    ZPageAge age = static_cast<ZPageAge>(i);
+    ZPageAge age = to_zpageage(i);
 
     FormatBuffer<> age_str("");
     if (age == ZPageAge::eden) {

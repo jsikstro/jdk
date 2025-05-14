@@ -27,6 +27,7 @@
 #include "gc/z/zObjectAllocator.hpp"
 
 #include "gc/z/zHeap.hpp"
+#include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
 
 inline ZPage** ZObjectAllocator::shared_small_page_addr() {

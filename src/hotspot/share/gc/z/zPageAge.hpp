@@ -49,16 +49,6 @@ enum class ZPageAge : uint8_t {
 constexpr uint ZPageAgeCount = static_cast<uint>(ZPageAge::old) + 1;
 constexpr ZPageAge ZPageAgeLastPlusOne = static_cast<ZPageAge>(ZPageAgeCount);
 
-inline uint untype(ZPageAge age) {
-  const uint value = static_cast<uint>(age);
-  return value;
-}
-
-inline ZPageAge to_zpageage(uint age) {
-  assert(age < ZPageAgeCount, "Invalid age");
-  return static_cast<ZPageAge>(age);
-}
-
 ENUMERATOR_VALUE_RANGE(ZPageAge,
                        static_cast<uint>(ZPageAge::eden),
                        ZPageAgeCount);

@@ -31,6 +31,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zNMethodTable.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
+#include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTracer.inline.hpp"

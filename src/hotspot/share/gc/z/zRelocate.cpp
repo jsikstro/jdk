@@ -34,7 +34,7 @@
 #include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zObjectAllocator.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
-#include "gc/z/zPageAge.hpp"
+#include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zRelocate.hpp"
 #include "gc/z/zRelocationSet.inline.hpp"
 #include "gc/z/zRootsIterator.hpp"

@@ -41,6 +41,7 @@
 #include "gc/z/zJNICritical.hpp"
 #include "gc/z/zMark.inline.hpp"
 #include "gc/z/zObjectAllocator.inline.hpp"
+#include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zRelocationSet.inline.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"

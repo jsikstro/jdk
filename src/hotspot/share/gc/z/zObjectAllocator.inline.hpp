@@ -45,8 +45,8 @@ inline void ZObjectAllocator::retire_pages() {
   _shared_small_page.set_all(nullptr);
 }
 
-inline ZObjectAllocator* ZObjectAllocator::allocator(ZPageAge page_age) {
-  return _allocators->at(untype(page_age));
+inline ZObjectAllocator* ZObjectAllocator::allocator(ZPageAge age) {
+  return _allocators->at(untype(age));
 }
 
 inline ZObjectAllocator* ZObjectAllocator::eden() {

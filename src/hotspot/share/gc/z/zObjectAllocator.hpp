@@ -78,7 +78,7 @@ private:
 public:
   static void initialize();
 
-  static ZObjectAllocator* allocator(ZPageAge page_age);
+  static ZObjectAllocator* allocator(ZPageAge age);
   static ZObjectAllocator* eden();
 
   static void retire_pages(ZPageAgeRange range);

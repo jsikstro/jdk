@@ -43,11 +43,11 @@ enum class ZPageAge : uint8_t {
   survivor12,
   survivor13,
   survivor14,
-  old,
-  EndCount
+  old
 };
 
-constexpr uint ZPageAgeCount = static_cast<uint>(ZPageAge::EndCount);
+constexpr uint ZPageAgeCount = static_cast<uint>(ZPageAge::old) + 1;
+constexpr ZPageAge ZPageAgeLastPlusOne = static_cast<ZPageAge>(ZPageAgeCount);
 
 inline uint untype(ZPageAge age) {
   const uint value = static_cast<uint>(age);
@@ -61,14 +61,14 @@ inline ZPageAge to_zpageage(uint age) {
 
 ENUMERATOR_VALUE_RANGE(ZPageAge,
                        static_cast<uint>(ZPageAge::eden),
-                       static_cast<uint>(ZPageAge::EndCount));
+                       ZPageAgeCount);
 
 using ZPageAgeRange = EnumRange<ZPageAge>;
 
 constexpr ZPageAgeRange ZPageAgeRangeEden = ZPageAgeRange::create<ZPageAge::eden, ZPageAge::survivor1>();
 constexpr ZPageAgeRange ZPageAgeRangeYoung = ZPageAgeRange::create<ZPageAge::eden, ZPageAge::old>();
 constexpr ZPageAgeRange ZPageAgeRangeSurvivor = ZPageAgeRange::create<ZPageAge::survivor1, ZPageAge::old>();
-constexpr ZPageAgeRange ZPageAgeRangeRelocation = ZPageAgeRange::create<ZPageAge::survivor1, ZPageAge::EndCount>();
-constexpr ZPageAgeRange ZPageAgeRangeOld = ZPageAgeRange::create<ZPageAge::old, ZPageAge::EndCount>();
+constexpr ZPageAgeRange ZPageAgeRangeRelocation = ZPageAgeRange::create<ZPageAge::survivor1, ZPageAgeLastPlusOne>();
+constexpr ZPageAgeRange ZPageAgeRangeOld = ZPageAgeRange::create<ZPageAge::old, ZPageAgeLastPlusOne>();
 
 #endif // SHARE_GC_Z_ZPAGEAGE_HPP

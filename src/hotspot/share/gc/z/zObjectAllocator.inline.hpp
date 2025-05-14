@@ -86,8 +86,4 @@ inline void ZObjectAllocator::undo_alloc_page(ZPage* page) {
   ZHeap::heap()->undo_alloc_page(page);
 }
 
-inline ZPageAge ZObjectAllocator::age() const {
-  return _age;
-}
-
 #endif // SHARE_GC_Z_ZOBJECTALLOCATOR_INLINE_HPP

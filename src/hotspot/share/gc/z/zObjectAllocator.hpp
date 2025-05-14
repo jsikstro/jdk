@@ -46,7 +46,7 @@ public:
 private:
   static Allocators _allocators;
 
-  ZPageAge           _age;
+  const ZPageAge     _age;
   const bool         _use_per_cpu_shared_small_pages;
   ZPerCPU<ZPage*>    _shared_small_page;
   ZContended<ZPage*> _shared_medium_page;
@@ -90,8 +90,6 @@ public:
   zaddress alloc_tlab(size_t size);
   zaddress alloc_object(size_t size);
   void undo_alloc_object(zaddress addr, size_t size);
-
-  ZPageAge age() const;
 
   size_t remaining() const;
 };

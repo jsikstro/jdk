@@ -385,18 +385,22 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZObjectAllocator* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZForwarding* forwarding) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
     return nullptr;
   }
 
+  const ZPageType type = forwarding->type();
+  const size_t size = forwarding->size();
+  const ZPageAge age = forwarding->to_age();
+
   ZAllocationFlags flags;
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return allocator->alloc_page(type, size, flags);
+  return ZHeap::heap()->alloc_page(type, size, flags, age);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {
@@ -426,8 +430,7 @@ public:
       _in_place_count(0) {}
 
   ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
-    ZObjectAllocator* const allocator = ZObjectAllocator::allocator(forwarding->to_age());
-    ZPage* const page = alloc_page(allocator, forwarding->type(), forwarding->size());
+    ZPage* const page = alloc_page(forwarding);
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
     }
@@ -509,8 +512,7 @@ public:
     // a new page.
     const ZPageAge to_age = forwarding->to_age();
     if (shared(to_age) == target) {
-      ZObjectAllocator* const allocator = ZObjectAllocator::allocator(forwarding->to_age());
-      ZPage* const to_page = alloc_page(allocator, forwarding->type(), forwarding->size());
+      ZPage* const to_page = alloc_page(forwarding);
       set_shared(to_age, to_page);
       if (to_page == nullptr) {
         Atomic::inc(&_in_place_count);

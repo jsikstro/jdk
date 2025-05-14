@@ -78,12 +78,12 @@ inline zaddress ZObjectAllocator::alloc_object(size_t size) {
   return alloc_object(size, flags);
 }
 
-inline void ZObjectAllocator::undo_alloc_page(ZPage* page) {
-  ZHeap::heap()->undo_alloc_page(page);
-}
-
 inline ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
   return ZHeap::heap()->alloc_page(type, size, flags, _age);
+}
+
+inline void ZObjectAllocator::undo_alloc_page(ZPage* page) {
+  ZHeap::heap()->undo_alloc_page(page);
 }
 
 inline ZPageAge ZObjectAllocator::age() const {

@@ -55,6 +55,7 @@ private:
   ZPage** shared_small_page_addr();
   ZPage* const* shared_small_page_addr() const;
 
+  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
   void undo_alloc_page(ZPage* page);
 
   // Allocate an object in a shared page. Allocate and
@@ -89,8 +90,6 @@ public:
   zaddress alloc_tlab(size_t size);
   zaddress alloc_object(size_t size);
   void undo_alloc_object(zaddress addr, size_t size);
-
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
 
   ZPageAge age() const;
 

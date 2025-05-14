@@ -22,14 +22,11 @@
  */
 
 #include "gc/z/zGlobals.hpp"
-#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zLock.inline.hpp"
-#include "gc/z/zObjectAllocator.hpp"
+#include "gc/z/zObjectAllocator.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
-#include "gc/z/zPageTable.inline.hpp"
 #include "gc/z/zStat.hpp"
-#include "gc/z/zValue.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/safepoint.hpp"
@@ -47,42 +44,12 @@ void ZObjectAllocator::initialize() {
   _allocators.initialize(it);
 }
 
-ZObjectAllocator* ZObjectAllocator::allocator(ZPageAge page_age) {
-  return _allocators->at(untype(page_age));
-}
-
-ZObjectAllocator* ZObjectAllocator::eden() {
-  return allocator(ZPageAge::eden);
-}
-
-void ZObjectAllocator::retire_pages(ZPageAgeRange range) {
-  for (ZPageAge age : range) {
-    _allocators->at(untype(age))->retire_pages();
-  }
-}
-
 ZObjectAllocator::ZObjectAllocator(ZPageAge age)
   : _age(age),
     _use_per_cpu_shared_small_pages(ZHeuristics::use_per_cpu_shared_small_pages()),
     _shared_small_page(nullptr),
     _shared_medium_page(nullptr),
     _medium_page_alloc_lock() {}
-
-ZPage** ZObjectAllocator::shared_small_page_addr() {
-  return _use_per_cpu_shared_small_pages ? _shared_small_page.addr() : _shared_small_page.addr(0);
-}
-
-ZPage* const* ZObjectAllocator::shared_small_page_addr() const {
-  return _use_per_cpu_shared_small_pages ? _shared_small_page.addr() : _shared_small_page.addr(0);
-}
-
-ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return ZHeap::heap()->alloc_page(type, size, flags, _age);
-}
-
-void ZObjectAllocator::undo_alloc_page(ZPage* page) {
-  ZHeap::heap()->undo_alloc_page(page);
-}
 
 zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
                                                        ZPageType page_type,
@@ -204,32 +171,6 @@ zaddress ZObjectAllocator::alloc_object(size_t size, ZAllocationFlags flags) {
   }
 }
 
-void ZObjectAllocator::retire_pages() {
-  assert(SafepointSynchronize::is_at_safepoint(), "Should be at safepoint");
-
-  // Reset allocation pages
-  _shared_medium_page.set(nullptr);
-  _shared_small_page.set_all(nullptr);
-}
-
-zaddress ZObjectAllocator::alloc_tlab(size_t size) {
-  guarantee(size <= ZHeap::heap()->max_tlab_size(), "TLAB too large");
-
-  ZAllocationFlags flags;
-  return alloc_object(size, flags);
-}
-
-zaddress ZObjectAllocator::alloc_object(size_t size) {
-  ZAllocationFlags flags;
-
-  if (_age != ZPageAge::eden) {
-    // Object allocation for relocation should not block
-    flags.set_non_blocking();
-  }
-
-  return alloc_object(size, flags);
-}
-
 void ZObjectAllocator::undo_alloc_object(zaddress addr, size_t size) {
   ZPage* const page = ZHeap::heap()->page(addr);
 
@@ -243,10 +184,6 @@ void ZObjectAllocator::undo_alloc_object(zaddress addr, size_t size) {
       ZStatInc(ZCounterUndoObjectAllocationFailed);
     }
   }
-}
-
-ZPageAge ZObjectAllocator::age() const {
-  return _age;
 }
 
 size_t ZObjectAllocator::remaining() const {

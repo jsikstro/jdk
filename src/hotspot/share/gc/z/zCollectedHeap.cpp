@@ -37,7 +37,7 @@
 #include "gc/z/zJNICritical.hpp"
 #include "gc/z/zNMethod.hpp"
 #include "gc/z/zObjArrayAllocator.hpp"
-#include "gc/z/zObjectAllocator.hpp"
+#include "gc/z/zObjectAllocator.inline.hpp"
 #include "gc/z/zServiceability.hpp"
 #include "gc/z/zStackChunkGCData.inline.hpp"
 #include "gc/z/zStat.hpp"

@@ -42,13 +42,7 @@ ZLiveMap::ZLiveMap(uint32_t object_max_count)
     _live_bytes(0),
     _segment_live_bits(0),
     _segment_claim_bits(0),
-    _bitmap(0) {}
-
-void ZLiveMap::initialize_bitmap() {
-  if (_bitmap.size() == 0) {
-    _bitmap.initialize(size_t(_segment_size) * size_t(NumSegments), false /* clear */);
-  }
-}
+    _bitmap(size_t(_segment_size) * size_t(NumSegments)) {}
 
 void ZLiveMap::reset(ZGenerationId id) {
   ZGeneration* const generation = ZGeneration::generation(id);
@@ -69,10 +63,6 @@ void ZLiveMap::reset(ZGenerationId id) {
       // Clear segment claimed/live bits
       segment_live_bits().clear();
       segment_claim_bits().clear();
-
-      // We lazily initialize the bitmap the first time the page is marked, i.e.
-      // a bit is about to be set for the first time.
-      initialize_bitmap();
 
       assert(_seqnum == seqnum_initializing, "Invalid");
 

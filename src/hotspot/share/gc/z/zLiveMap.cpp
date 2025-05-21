@@ -95,11 +95,12 @@ void ZLiveMap::reset(ZGenerationId id) {
       log_trace(gc)("Mark seqnum reset contention, thread: " PTR_FORMAT " (%s), map: " PTR_FORMAT,
                     p2i(Thread::current()), ZUtils::thread_name(), p2i(this));
     }
+
+    if (!installed) {
+      _bitmap.free(bitmap_backing, bitmap_size_in_words);
+    }
   }
 
-  if (!installed) {
-    _bitmap.free(bitmap_backing, bitmap_size_in_words);
-  }
 }
 
 void ZLiveMap::reset_segment(BitMap::idx_t segment) {

@@ -66,8 +66,6 @@ private:
 
   bool claim_segment(BitMap::idx_t segment);
 
-  void initialize_bitmap();
-
   void reset(ZGenerationId id);
   void reset_segment(BitMap::idx_t segment);
 

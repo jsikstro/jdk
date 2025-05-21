@@ -47,6 +47,10 @@ inline ZBitMap::ZBitMap(const ZBitMap& other)
   memcpy(map(), other.map(), size_in_bytes());
 }
 
+inline void ZBitMap::lazy_initialize(bm_word_t* map, idx_t size) {
+  update(map, size);
+}
+
 inline BitMap::bm_word_t ZBitMap::bit_mask_pair(idx_t bit) {
   assert(bit_in_word(bit) < BitsPerWord - 1, "Invalid bit index");
   return (bm_word_t)3 << bit_in_word(bit);

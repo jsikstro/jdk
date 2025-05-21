@@ -43,6 +43,8 @@ public:
   ZBitMap(idx_t size_in_bits);
   ZBitMap(const ZBitMap& other);
 
+  void lazy_initialize(bm_word_t* map, idx_t size);
+
   bool par_set_bit_pair(idx_t bit, bool finalizable, bool& inc_live);
 
   class ReverseIterator;

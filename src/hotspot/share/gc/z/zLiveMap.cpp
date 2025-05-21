@@ -29,6 +29,7 @@
 #include "logging/log.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
 
 static const ZStatCounter ZCounterMarkSeqNumResetContention("Contention", "Mark SeqNum Reset Contention", ZStatUnitOpsPerSecond);
@@ -44,16 +45,17 @@ ZLiveMap::ZLiveMap(uint32_t object_max_count)
     _segment_claim_bits(0),
     _bitmap(0) {}
 
-void ZLiveMap::initialize_bitmap() {
-  if (_bitmap.size() == 0) {
-    _bitmap.initialize(size_t(_segment_size) * size_t(NumSegments), false /* clear */);
-  }
-}
-
 void ZLiveMap::reset(ZGenerationId id) {
   ZGeneration* const generation = ZGeneration::generation(id);
   const uint32_t seqnum_initializing = (uint32_t)-1;
   bool contention = false;
+  bool installed = false;
+
+  const size_t bitmap_size_in_bits = (size_t)_segment_size * (size_t)NumSegments;
+  const size_t bitmap_size_in_words = bitmap_size_in_bits / BitsPerWord;
+
+  // Allocate backing for the bitmap
+  BitMap::bm_word_t* bitmap_backing = _bitmap.allocate(bitmap_size_in_words);
 
   // Multiple threads can enter here, make sure only one of them
   // resets the marking information while the others busy wait.
@@ -70,9 +72,8 @@ void ZLiveMap::reset(ZGenerationId id) {
       segment_live_bits().clear();
       segment_claim_bits().clear();
 
-      // We lazily initialize the bitmap the first time the page is marked, i.e.
-      // a bit is about to be set for the first time.
-      initialize_bitmap();
+      _bitmap.lazy_initialize(bitmap_backing, bitmap_size_in_bits);
+      installed = true;
 
       assert(_seqnum == seqnum_initializing, "Invalid");
 
@@ -93,6 +94,10 @@ void ZLiveMap::reset(ZGenerationId id) {
       log_trace(gc)("Mark seqnum reset contention, thread: " PTR_FORMAT " (%s), map: " PTR_FORMAT,
                     p2i(Thread::current()), ZUtils::thread_name(), p2i(this));
     }
+  }
+
+  if (!installed) {
+    _bitmap.free(bitmap_backing, bitmap_size_in_words);
   }
 }
 

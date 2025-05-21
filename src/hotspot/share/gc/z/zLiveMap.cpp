@@ -49,7 +49,6 @@ void ZLiveMap::reset(ZGenerationId id) {
   ZGeneration* const generation = ZGeneration::generation(id);
   const uint32_t seqnum_initializing = (uint32_t)-1;
   bool contention = false;
-  bool installed = false;
 
   const size_t bitmap_size_in_bits = (size_t)_segment_size * (size_t)NumSegments;
   const size_t bitmap_size_in_words = bitmap_size_in_bits / BitsPerWord;
@@ -60,30 +59,33 @@ void ZLiveMap::reset(ZGenerationId id) {
        seqnum != generation->seqnum();
        seqnum = Atomic::load_acquire(&_seqnum)) {
 
-    // Allocate backing for the bitmap
-    BitMap::bm_word_t* bitmap_backing = _bitmap.allocate(bitmap_size_in_words);
+    if (seqnum != seqnum_initializing) {
+      // Allocate backing memory for the livemap
+      BitMap::bm_word_t* bitmap_backing = _bitmap.allocate(bitmap_size_in_words);
 
-    if ((seqnum != seqnum_initializing) &&
-        (Atomic::cmpxchg(&_seqnum, seqnum, seqnum_initializing) == seqnum)) {
-      // Reset marking information
-      _live_bytes = 0;
-      _live_objects = 0;
+      if (Atomic::cmpxchg(&_seqnum, seqnum, seqnum_initializing) == seqnum) {
+        // Reset marking information
+        _live_bytes = 0;
+        _live_objects = 0;
 
-      // Clear segment claimed/live bits
-      segment_live_bits().clear();
-      segment_claim_bits().clear();
+        // Clear segment claimed/live bits
+        segment_live_bits().clear();
+        segment_claim_bits().clear();
 
-      _bitmap.lazy_initialize(bitmap_backing, bitmap_size_in_bits);
-      installed = true;
+        _bitmap.lazy_initialize(bitmap_backing, bitmap_size_in_bits);
 
-      assert(_seqnum == seqnum_initializing, "Invalid");
+        assert(_seqnum == seqnum_initializing, "Invalid");
 
-      // Make sure the newly reset marking information is ordered
-      // before the update of the page seqnum, such that when the
-      // up-to-date seqnum is load acquired, the bit maps will not
-      // contain stale information.
-      Atomic::release_store(&_seqnum, generation->seqnum());
-      break;
+        // Make sure the newly reset marking information is ordered
+        // before the update of the page seqnum, such that when the
+        // up-to-date seqnum is load acquired, the bit maps will not
+        // contain stale information.
+        Atomic::release_store(&_seqnum, generation->seqnum());
+        break;
+      } else {
+        // Another thread beat us to it. Free the memory
+        _bitmap.free(bitmap_backing, bitmap_size_in_words);
+      }
     }
 
     // Mark reset contention
@@ -96,9 +98,6 @@ void ZLiveMap::reset(ZGenerationId id) {
                     p2i(Thread::current()), ZUtils::thread_name(), p2i(this));
     }
 
-    if (!installed) {
-      _bitmap.free(bitmap_backing, bitmap_size_in_words);
-    }
   }
 
 }

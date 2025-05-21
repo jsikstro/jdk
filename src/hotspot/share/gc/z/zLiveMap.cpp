@@ -54,14 +54,15 @@ void ZLiveMap::reset(ZGenerationId id) {
   const size_t bitmap_size_in_bits = (size_t)_segment_size * (size_t)NumSegments;
   const size_t bitmap_size_in_words = bitmap_size_in_bits / BitsPerWord;
 
-  // Allocate backing for the bitmap
-  BitMap::bm_word_t* bitmap_backing = _bitmap.allocate(bitmap_size_in_words);
-
   // Multiple threads can enter here, make sure only one of them
   // resets the marking information while the others busy wait.
   for (uint32_t seqnum = Atomic::load_acquire(&_seqnum);
        seqnum != generation->seqnum();
        seqnum = Atomic::load_acquire(&_seqnum)) {
+
+    // Allocate backing for the bitmap
+    BitMap::bm_word_t* bitmap_backing = _bitmap.allocate(bitmap_size_in_words);
+
     if ((seqnum != seqnum_initializing) &&
         (Atomic::cmpxchg(&_seqnum, seqnum, seqnum_initializing) == seqnum)) {
       // Reset marking information

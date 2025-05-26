@@ -1933,6 +1933,8 @@ ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation, ZPageAlloca
   // Commit memory for the increased capacity and map the entire vmem.
   if (!commit_and_map(allocation, vmem)) {
     free_after_alloc_page_failed(allocation);
+    // TODO: Something smells fishy here
+    //assert(attempt != ZPageAllocationAttempt::retry, "Shouldn't retry more than once");
     return alloc_page_inner(allocation, ZPageAllocationAttempt::retry);
   }
 

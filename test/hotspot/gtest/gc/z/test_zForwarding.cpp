@@ -27,6 +27,7 @@
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.hpp"
+#include "gc/z/zLiveMap.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "runtime/os.hpp"
@@ -69,6 +70,7 @@ public:
 
   virtual void SetUp() {
     ZGlobalsPointers::initialize();
+    ZLiveMap::initialize();
     _old_heap = ZHeap::_heap;
     ZHeap::_heap = (ZHeap*)os::malloc(sizeof(ZHeap), mtTest);
 

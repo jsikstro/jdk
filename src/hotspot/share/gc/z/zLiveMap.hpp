@@ -27,7 +27,9 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zBitMap.hpp"
 #include "gc/z/zGenerationId.hpp"
+#include "gc/z/zLock.hpp"
 #include "memory/allocation.hpp"
+#include "utilities/deferred.hpp"
 
 class ObjectClosure;
 
@@ -37,6 +39,8 @@ class ZLiveMap {
 private:
   static const uint32_t NumSegments = 64;
   static const uint32_t BitsPerObject = 2;
+
+  static Deferred<ZConditionLock> _reset_lock;
 
   const uint32_t    _segment_size;
   const int         _segment_shift;
@@ -79,6 +83,8 @@ private:
 public:
   ZLiveMap(uint32_t object_max_count);
   ZLiveMap(const ZLiveMap& other) = delete;
+
+  static void initialize();
 
   void reset();
 

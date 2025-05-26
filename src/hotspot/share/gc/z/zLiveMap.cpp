@@ -24,6 +24,7 @@
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLiveMap.inline.hpp"
+#include "gc/z/zLock.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUtils.hpp"
 #include "logging/log.hpp"
@@ -34,6 +35,8 @@
 static const ZStatCounter ZCounterMarkSeqNumResetContention("Contention", "Mark SeqNum Reset Contention", ZStatUnitOpsPerSecond);
 static const ZStatCounter ZCounterMarkSegmentResetContention("Contention", "Mark Segment Reset Contention", ZStatUnitOpsPerSecond);
 
+Deferred<ZConditionLock> ZLiveMap::_reset_lock;
+
 ZLiveMap::ZLiveMap(uint32_t object_max_count)
   : _segment_size((object_max_count == 1 ? 1u : (object_max_count / NumSegments)) * BitsPerObject),
     _segment_shift(log2i_exact(_segment_size)),
@@ -43,6 +46,10 @@ ZLiveMap::ZLiveMap(uint32_t object_max_count)
     _segment_live_bits(0),
     _segment_claim_bits(0),
     _bitmap(0) {}
+
+void ZLiveMap::initialize() {
+  _reset_lock.initialize();
+}
 
 void ZLiveMap::initialize_bitmap() {
   if (_bitmap.size() == 0) {
@@ -55,45 +62,57 @@ void ZLiveMap::reset(ZGenerationId id) {
   const uint32_t seqnum_initializing = (uint32_t)-1;
   bool contention = false;
 
-  // Multiple threads can enter here, make sure only one of them
-  // resets the marking information while the others busy wait.
-  for (uint32_t seqnum = Atomic::load_acquire(&_seqnum);
-       seqnum != generation->seqnum();
-       seqnum = Atomic::load_acquire(&_seqnum)) {
-    if ((seqnum != seqnum_initializing) &&
-        (Atomic::cmpxchg(&_seqnum, seqnum, seqnum_initializing) == seqnum)) {
-      // Reset marking information
-      _live_bytes = 0;
-      _live_objects = 0;
+  uint32_t seqnum = Atomic::load_acquire(&_seqnum);
 
-      // Clear segment claimed/live bits
-      segment_live_bits().clear();
-      segment_claim_bits().clear();
-
-      // We lazily initialize the bitmap the first time the page is marked, i.e.
-      // a bit is about to be set for the first time.
-      initialize_bitmap();
-
-      assert(_seqnum == seqnum_initializing, "Invalid");
-
-      // Make sure the newly reset marking information is ordered
-      // before the update of the page seqnum, such that when the
-      // up-to-date seqnum is load acquired, the bit maps will not
-      // contain stale information.
-      Atomic::release_store(&_seqnum, generation->seqnum());
-      break;
-    }
-
-    // Mark reset contention
-    if (!contention) {
-      // Count contention once
-      ZStatInc(ZCounterMarkSeqNumResetContention);
-      contention = true;
-
-      log_trace(gc)("Mark seqnum reset contention, thread: " PTR_FORMAT " (%s), map: " PTR_FORMAT,
-                    p2i(Thread::current()), ZUtils::thread_name(), p2i(this));
-    }
+  if (seqnum == generation->seqnum()) {
+    return;
   }
+
+  {
+    ZLocker<ZConditionLock> locker(_reset_lock.get());
+
+    seqnum = Atomic::load_acquire(&_seqnum);
+    while (seqnum == seqnum_initializing) {
+      _reset_lock->wait();
+      seqnum = Atomic::load_acquire(&_seqnum);
+
+      // Mark reset contention
+      if (!contention) {
+        // Count contention once
+        ZStatInc(ZCounterMarkSeqNumResetContention);
+        contention = true;
+
+        log_trace(gc)("Mark seqnum reset contention, thread: " PTR_FORMAT " (%s), map: " PTR_FORMAT,
+                      p2i(Thread::current()), ZUtils::thread_name(), p2i(this));
+      }
+    }
+
+    // Another thread finished initialization
+    if (seqnum == generation->seqnum()) {
+      return;
+    }
+
+    // We claimed initialization
+    Atomic::store(&_seqnum, seqnum_initializing);
+  }
+
+  // Reset marking information
+  _live_bytes = 0;
+  _live_objects = 0;
+
+  // Clear segment claimed/live bits
+  segment_live_bits().clear();
+  segment_claim_bits().clear();
+
+  // We lazily initialize the bitmap the first time the page is marked, i.e.
+  // a bit is about to be set for the first time.
+  initialize_bitmap();
+
+  assert(_seqnum == seqnum_initializing, "Invalid");
+
+  ZLocker<ZConditionLock> locker(_reset_lock.get());
+  Atomic::release_store(&_seqnum, generation->seqnum());
+  _reset_lock->notify_all();
 }
 
 void ZLiveMap::reset_segment(BitMap::idx_t segment) {

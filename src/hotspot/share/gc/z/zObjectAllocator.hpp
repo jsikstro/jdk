@@ -31,7 +31,6 @@
 class ZObjectAllocator : public AllStatic {
 public:
   static constexpr uint NumAllocators = ZPageAgeCount;
-  static constexpr uint NumRelocationAllocators = NumAllocators - 1;
 
   static void initialize();
 

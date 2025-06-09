@@ -52,7 +52,7 @@ ZPage* const* ZObjectAllocator::PerAge::shared_small_page_addr() const {
 }
 
 ZPage* ZObjectAllocator::PerAge::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
-  return ZHeap::heap()->alloc_page(type, size, flags, _age);
+  return ZHeap::heap()->alloc_page(type, size, flags, _age, -1u);
 }
 
 void ZObjectAllocator::PerAge::undo_alloc_page(ZPage* page) {

@@ -25,8 +25,10 @@
 #define SHARE_GC_Z_ZRELOCATE_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocationSet.hpp"
+#include "gc/z/zValue.hpp"
 
 class ZForwarding;
 class ZGeneration;
@@ -74,12 +76,34 @@ public:
   void desynchronize();
 };
 
+class ZRelocationTargets {
+private:
+  // All ages except eden are relocation target ages
+  static constexpr uint NumRelocationTargets = ZPageAgeCount - 1;
+
+  using TargetArray = ZPage*[NumRelocationTargets];
+
+  ZPerNUMA<TargetArray> _targets;
+
+public:
+  ZRelocationTargets();
+
+  ZPage* get(ZPageAge age, uint32_t partition_id);
+  void set(ZPageAge age, uint32_t partition_id, ZPage* page);
+
+  template <typename Function>
+  void apply_and_clear_targets(Function function);
+};
+
 class ZRelocate {
   friend class ZRelocateTask;
 
 private:
-  ZGeneration* const _generation;
-  ZRelocateQueue     _queue;
+  ZGeneration* const             _generation;
+  ZRelocateQueue                 _queue;
+  ZPerWorker<ZRelocationTargets> _small_targets;
+  ZPerWorker<ZRelocationTargets> _medium_targets;
+  ZRelocationTargets             _shared_medium_targets;
 
   ZWorkers* workers() const;
   void work(ZRelocationSetParallelIterator* iter);

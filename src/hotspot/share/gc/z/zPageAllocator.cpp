@@ -420,7 +420,7 @@ private:
   ZFuture<bool>              _stall_result;
 
 public:
-  ZPageAllocation(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age)
+  ZPageAllocation(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age, uint32_t preferred_partition)
     : _type(type),
       _requested_size(size),
       _flags(flags),
@@ -428,7 +428,7 @@ public:
       _start_timestamp(Ticks::now()),
       _young_seqnum(ZGeneration::young()->seqnum()),
       _old_seqnum(ZGeneration::old()->seqnum()),
-      _initiating_numa_id(ZNUMA::id()),
+      _initiating_numa_id(preferred_partition == -1u ? ZNUMA::id() : preferred_partition),
       _is_multi_partition(false),
       _single_partition_allocation(size),
       _multi_partition_allocation(size),
@@ -1394,10 +1394,10 @@ static void check_out_of_memory_during_initialization() {
   }
 }
 
-ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
+ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age, uint32_t preferred_partition) {
   EventZPageAllocation event;
 
-  ZPageAllocation allocation(type, size, flags, age);
+  ZPageAllocation allocation(type, size, flags, age, preferred_partition);
 
   // Allocate the page
   ZPage* const page = alloc_page_inner(&allocation);

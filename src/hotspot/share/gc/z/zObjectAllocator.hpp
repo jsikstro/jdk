@@ -79,7 +79,6 @@ private:
 class ZObjectAllocators : public AllStatic {
 public:
   static constexpr uint NumAllocators = ZPageAgeCount;
-  static constexpr uint NumRelocationAllocators = NumAllocators - 1;
 
 private:
   using Allocators = Deferred<ValueObjArray<ZObjectAllocator, NumAllocators>>;

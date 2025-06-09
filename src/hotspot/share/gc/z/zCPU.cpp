@@ -57,7 +57,11 @@ uint32_t ZCPU::id_slow() {
   }
 
   // Set current CPU
+#if defined(__APPLE__)
+  _cpu = os::random() % os::processor_count();
+#else
   _cpu = os::processor_id();
+#endif
 
   // Update affinity table
   _affinity[_cpu]._thread = _self;

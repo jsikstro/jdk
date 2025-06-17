@@ -103,6 +103,14 @@ inline size_t ZForwarding::object_alignment_shift() const {
   return _object_alignment_shift;
 }
 
+inline uint32_t ZForwarding::source_partition_id() const {
+  if (_page->is_multi_partition()) {
+    return 0;
+  }
+
+  return _page->single_partition_id();
+}
+
 inline uint32_t ZForwarding::target_partition_id() const {
   if (_page->is_multi_partition()) {
     // Multi-partition pages don't belong to any specific partition,

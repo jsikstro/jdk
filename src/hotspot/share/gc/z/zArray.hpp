@@ -91,10 +91,11 @@ public:
   ZArrayIteratorImpl(const ZArray<T>* array);
 
   bool next(T* elem);
-  bool next_index(size_t* index);
 
-  template <typename Function>
-  bool next_numa_local(Function checker, uint32_t numa_id, T* elem);
+  template <typename Function, typename... Args>
+  bool next_if(T* elem, Function if_check, Args&&... args);
+
+  bool next_index(size_t* index);
 
   T index_to_elem(size_t index);
 };

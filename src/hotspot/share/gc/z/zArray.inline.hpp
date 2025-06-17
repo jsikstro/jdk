@@ -162,13 +162,13 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next(T* elem) {
 }
 
 template <typename T, bool Parallel>
-template <typename Function>
-inline bool ZArrayIteratorImpl<T, Parallel>::next_numa_local(Function function, uint32_t numa_id, T* elem) {
+template <typename Function, typename... Args>
+inline bool ZArrayIteratorImpl<T, Parallel>::next_if(T* elem, Function if_check, Args&&... args) {
   size_t index;
 
-  while (next_index(&index)) {
-    // Check if the element is NUMA-local using the provided function
-    if (function(numa_id, index_to_elem(index))) {
+  while (if_check(&index)) {
+    // Check if the element should be selected
+    if (function(index_to_elem(index), args...)) {
       *elem = index_to_elem(index);
       return true;
     }

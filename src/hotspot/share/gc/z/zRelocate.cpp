@@ -1078,13 +1078,13 @@ public:
 
 class ZRelocateTask : public ZRestartableTask {
 private:
-  ZRelocationSetNUMAIterator*        _iters;
-  ZGeneration* const                 _generation;
-  ZRelocateQueue* const              _queue;
-  ZPerWorker<ZRelocationTargets>*    _small_targets;
-  ZPerWorker<ZRelocationTargets>*    _medium_targets;
-  ZRelocateSmallAllocator            _small_allocator;
-  ZRelocateMediumAllocator           _medium_allocator;
+  ZRelocationSetNUMAIterator*     _iters;
+  ZGeneration* const              _generation;
+  ZRelocateQueue* const           _queue;
+  ZPerWorker<ZRelocationTargets>* _small_targets;
+  ZPerWorker<ZRelocationTargets>* _medium_targets;
+  ZRelocateSmallAllocator         _small_allocator;
+  ZRelocateMediumAllocator        _medium_allocator;
 
 public:
   ZRelocateTask(ZRelocationSet* relocation_set,
@@ -1101,7 +1101,7 @@ public:
       _small_allocator(_generation),
       _medium_allocator(_generation, shared_medium_targets) {
 
-    // Allocate relocation set
+    // Allocate and initialize per-numa iterator
     _iters = NEW_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, ZNUMA::count(), mtGC);
     for (uint32_t i = 0; i < ZNUMA::count(); i++) {
       ::new (&_iters[i]) ZRelocationSetNUMAIterator(relocation_set);
@@ -1113,6 +1113,11 @@ public:
 
     // Signal that we're not using the queue anymore. Used mostly for asserts.
     _queue->deactivate();
+
+    // Call destructors for each per-numa iterator and free the backing array
+    for (uint32_t i = 0; i < ZNUMA::count(); i++) {
+      _iters[i].~ZRelocationSetNUMAIterator();
+    }
 
     FREE_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, _iters);
   }
@@ -1146,7 +1151,7 @@ public:
       }
     };
 
-    const auto check_numa_local = [&](uint32_t numa_id, ZForwarding* forwarding) {
+    const auto check_numa_local = [&](ZForwarding* forwarding, uint32_t numa_id) {
       return forwarding->source_partition_id() == numa_id;
     };
 
@@ -1155,7 +1160,7 @@ public:
       uint32_t current_node = ZNUMA::id();
 
       for (uint32_t i = 0; i < num_nodes; i++) {
-        if (_iters[current_node].next_numa_local(check_numa_local, current_node, &forwarding)) {
+        if (_iters[current_node].next_if(&forwarding, check_numa_local, current_node)) {
           claim_and_do_forwarding(forwarding);
           return true;
         }

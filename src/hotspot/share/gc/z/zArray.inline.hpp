@@ -163,12 +163,12 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next(T* elem) {
 
 template <typename T, bool Parallel>
 template <typename Function, typename... Args>
-inline bool ZArrayIteratorImpl<T, Parallel>::next_if(T* elem, Function if_check, Args&&... args) {
+inline bool ZArrayIteratorImpl<T, Parallel>::next_if(T* elem, Function check, Args&&... args) {
   size_t index;
 
-  while (if_check(&index)) {
+  while (next_index(&index)) {
     // Check if the element should be selected
-    if (function(index_to_elem(index), args...)) {
+    if (check(index_to_elem(index), args...)) {
       *elem = index_to_elem(index);
       return true;
     }

@@ -93,7 +93,7 @@ public:
   bool next(T* elem);
 
   template <typename Function, typename... Args>
-  bool next_if(T* elem, Function if_check, Args&&... args);
+  bool next_if(T* elem, Function check, Args&&... args);
 
   bool next_index(size_t* index);
 

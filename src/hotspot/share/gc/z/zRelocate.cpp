@@ -36,6 +36,7 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zRelocate.hpp"
+#include "gc/z/zRelocationSet.hpp"
 #include "gc/z/zRelocationSet.inline.hpp"
 #include "gc/z/zRootsIterator.hpp"
 #include "gc/z/zStackWatermark.hpp"
@@ -46,6 +47,7 @@
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVerify.hpp"
 #include "gc/z/zWorkers.hpp"
+#include "memory/allocation.hpp"
 #include "prims/jvmtiTagMap.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
@@ -1076,13 +1078,13 @@ public:
 
 class ZRelocateTask : public ZRestartableTask {
 private:
-  ZRelocationSetParallelIterator  _iter;
-  ZGeneration* const              _generation;
-  ZRelocateQueue* const           _queue;
-  ZPerWorker<ZRelocationTargets>* _small_targets;
-  ZPerWorker<ZRelocationTargets>* _medium_targets;
-  ZRelocateSmallAllocator         _small_allocator;
-  ZRelocateMediumAllocator        _medium_allocator;
+  ZRelocationSetNUMAIterator*        _iters;
+  ZGeneration* const                 _generation;
+  ZRelocateQueue* const              _queue;
+  ZPerWorker<ZRelocationTargets>*    _small_targets;
+  ZPerWorker<ZRelocationTargets>*    _medium_targets;
+  ZRelocateSmallAllocator            _small_allocator;
+  ZRelocateMediumAllocator           _medium_allocator;
 
 public:
   ZRelocateTask(ZRelocationSet* relocation_set,
@@ -1091,24 +1093,34 @@ public:
                 ZPerWorker<ZRelocationTargets>* medium_targets,
                 ZRelocationTargets* shared_medium_targets)
     : ZRestartableTask("ZRelocateTask"),
-      _iter(relocation_set),
+      _iters(),
       _generation(relocation_set->generation()),
       _queue(queue),
       _small_targets(small_targets),
       _medium_targets(medium_targets),
       _small_allocator(_generation),
-      _medium_allocator(_generation, shared_medium_targets) {}
+      _medium_allocator(_generation, shared_medium_targets) {
+
+    // Allocate relocation set
+    _iters = NEW_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, ZNUMA::count(), mtGC);
+    for (uint32_t i = 0; i < ZNUMA::count(); i++) {
+      ::new (&_iters[i]) ZRelocationSetNUMAIterator(relocation_set);
+    }
+  }
 
   ~ZRelocateTask() {
     _generation->stat_relocation()->at_relocate_end(_small_allocator.in_place_count(), _medium_allocator.in_place_count());
 
     // Signal that we're not using the queue anymore. Used mostly for asserts.
     _queue->deactivate();
+
+    FREE_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, _iters);
   }
 
   virtual void work() {
     ZRelocateWork<ZRelocateSmallAllocator> small(&_small_allocator, _small_targets->addr(), _generation);
     ZRelocateWork<ZRelocateMediumAllocator> medium(&_medium_allocator, _medium_targets->addr(), _generation);
+    const uint32_t num_nodes = ZNUMA::count();
 
     const auto do_forwarding = [&](ZForwarding* forwarding) {
       ZPage* const page = forwarding->page();
@@ -1134,12 +1146,22 @@ public:
       }
     };
 
+    const auto check_numa_local = [&](uint32_t numa_id, ZForwarding* forwarding) {
+      return forwarding->source_partition_id() == numa_id;
+    };
+
     const auto do_forwarding_one_from_iter = [&]() {
       ZForwarding* forwarding;
+      uint32_t current_node = ZNUMA::id();
 
-      if (_iter.next(&forwarding)) {
-        claim_and_do_forwarding(forwarding);
-        return true;
+      for (uint32_t i = 0; i < num_nodes; i++) {
+        if (_iters[current_node].next_numa_local(check_numa_local, current_node, &forwarding)) {
+          claim_and_do_forwarding(forwarding);
+          return true;
+        }
+
+        // Check next node.
+        current_node = (current_node + 1) % num_nodes;
       }
 
       return false;

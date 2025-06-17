@@ -88,6 +88,7 @@ private:
   const double                     _fragmentation_limit;
   const size_t                     _page_fragmentation_limit;
   ZArray<ZPage*>                   _live_pages;
+  size_t*                          _live_pages_numa_nodes;
   ZArray<ZPage*>                   _not_selected_pages;
   size_t                           _forwarding_entries;
   ZRelocationSetSelectorGroupStats _stats[ZPageAgeCount];
@@ -97,6 +98,7 @@ private:
 
   size_t partition_index(const ZPage* page) const;
   void semi_sort();
+  void numa_sort();
   void select_inner();
 
   bool pre_filter_page(const ZPage* page, size_t live_bytes) const;
@@ -107,6 +109,8 @@ public:
                               size_t max_page_size,
                               size_t object_size_limit,
                               double fragmentation_limit);
+
+  ~ZRelocationSetSelectorGroup();
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);

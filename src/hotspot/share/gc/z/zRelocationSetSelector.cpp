@@ -27,6 +27,7 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"
@@ -53,9 +54,19 @@ ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
     _fragmentation_limit(fragmentation_limit),
     _page_fragmentation_limit((size_t)(_max_page_size * (_fragmentation_limit / 100))),
     _live_pages(),
+    _live_pages_numa_nodes(nullptr),
     _not_selected_pages(),
     _forwarding_entries(0),
-    _stats() {}
+    _stats() {
+
+  const size_t num_nodes = ZNUMA::count();
+  _live_pages_numa_nodes = NEW_C_HEAP_ARRAY(size_t, num_nodes, mtGC);
+  memset(_live_pages_numa_nodes, 0, num_nodes * sizeof(size_t));
+}
+
+ZRelocationSetSelectorGroup::~ZRelocationSetSelectorGroup() {
+  FREE_C_HEAP_ARRAY(size_t, _live_pages_numa_nodes);
+}
 
 bool ZRelocationSetSelectorGroup::is_disabled() {
   // Only medium pages can be disabled
@@ -111,6 +122,53 @@ void ZRelocationSetSelectorGroup::semi_sort() {
   _live_pages.swap(&sorted_live_pages);
 }
 
+void ZRelocationSetSelectorGroup::numa_sort() {
+  // TODO: Revert this
+  // If NUMA is enabled, we sort the semi-sorted list of pages again based
+  // on the NUMA node (i.e. partition) the page belongs to.
+  //if (!ZNUMA::is_enabled()) {
+  //  return;
+  //}
+
+  const size_t num_nodes = ZNUMA::count();
+  size_t* numa_offsets = NEW_C_HEAP_ARRAY(size_t, num_nodes, mtGC);
+
+  tty->print_cr("Total length: %d", _live_pages.length());
+
+  // Install offsets to the numa_offsets array
+  uint32_t current_offset = 0;
+  for (uint32_t i = 0; i < num_nodes; i++) {
+    numa_offsets[i] = current_offset;
+    tty->print_cr("Numa offset %d = %zu", i, numa_offsets[i]);
+    current_offset += _live_pages_numa_nodes[i];
+  }
+
+  const int npages = _live_pages.length();
+  ZArray<ZPage*> numa_sorted_live_pages(npages, npages, nullptr);
+
+  ZArrayIterator<ZPage*> iter(&_live_pages);
+  for (ZPage* page; iter.next(&page);) {
+    size_t offset_id;
+    if (page->is_multi_partition()) {
+      offset_id = 0;
+    } else {
+      offset_id = page->single_partition_id();
+    }
+
+    numa_sorted_live_pages.at_put(numa_offsets[offset_id], page);
+    numa_offsets[offset_id]++;
+  }
+
+  _live_pages.swap(&numa_sorted_live_pages);
+
+  FREE_C_HEAP_ARRAY(size_t, numa_offsets);
+
+  ZArrayIterator<ZPage*> iter2(&_live_pages);
+  for (ZPage* page; iter2.next(&page);) {
+    tty->print_cr("%p - %d - %zu", page, page->single_partition_id(), page->live_bytes());
+  }
+}
+
 void ZRelocationSetSelectorGroup::select_inner() {
   // Calculate the number of pages to relocate by successively including pages in
   // a candidate relocation set and calculate the maximum space requirement for
@@ -126,6 +184,7 @@ void ZRelocationSetSelectorGroup::select_inner() {
   size_t from_forwarding_entries = 0;
 
   semi_sort();
+  numa_sort();
 
   for (int from = 1; from <= npages; from++) {
     // Add page to the candidate relocation set

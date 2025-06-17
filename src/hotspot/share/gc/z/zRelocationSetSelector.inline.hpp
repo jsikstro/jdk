@@ -109,6 +109,14 @@ inline void ZRelocationSetSelectorGroup::register_live_page(ZPage* page) {
   // Pre-filter out pages that are guaranteed to not be selected
   if (pre_filter_page(page, live)) {
     _live_pages.append(page);
+
+    // Track how many pages are selected on each NUMA node. Multi-partition pages
+    // do not belong to any specific NUMA node, put them on node 0.
+    if (page->is_multi_partition()) {
+      _live_pages_numa_nodes[0]++;
+    } else {
+      _live_pages_numa_nodes[page->single_partition_id()]++;
+    }
   } else if (page->is_young()) {
     _not_selected_pages.append(page);
   }

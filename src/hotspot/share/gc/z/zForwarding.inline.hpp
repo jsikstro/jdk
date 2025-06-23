@@ -114,7 +114,7 @@ inline uint32_t ZForwarding::source_partition_id() const {
 inline uint32_t ZForwarding::target_partition_id() const {
   if (_page->is_multi_partition()) {
     // Multi-partition pages don't belong to any specific partition,
-    // use the affinity of the current thread doing relocaiton
+    // use the affinity of the current thread doing relocation
     return ZNUMA::id();
   }
 

@@ -78,10 +78,7 @@ public:
 
 class ZRelocationTargets {
 private:
-  // All ages except eden are relocation target ages
-  static constexpr uint NumRelocationTargets = ZPageAgeCount - 1;
-
-  using TargetArray = ZPage*[NumRelocationTargets];
+  using TargetArray = ZPage*[ZNumRelocationAges];
 
   ZPerNUMA<TargetArray> _targets;
 

@@ -34,6 +34,7 @@
 #include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAge.inline.hpp"
 #include "gc/z/zRelocate.hpp"
 #include "gc/z/zRelocationSet.hpp"
@@ -322,7 +323,7 @@ template <typename Function>
 void ZRelocationTargets::apply_and_clear_targets(Function function) {
   ZPerNUMAIterator<TargetArray> iter(&_targets);
   for (TargetArray* targets; iter.next(&targets);) {
-    for (size_t i = 0; i < NumRelocationTargets; i++) {
+    for (size_t i = 0; i < ZNumRelocationAges; i++) {
       // Apply function
       function((*targets)[i]);
 

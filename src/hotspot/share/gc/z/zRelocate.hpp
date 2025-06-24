@@ -25,7 +25,6 @@
 #define SHARE_GC_Z_ZRELOCATE_HPP
 
 #include "gc/z/zAddress.hpp"
-#include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocationSet.hpp"
 #include "gc/z/zValue.hpp"

@@ -511,7 +511,7 @@ public:
       _lock(),
       _shared_targets(targets),
       _in_place(false),
-      _in_place_count(0) { }
+      _in_place_count(0) {}
 
   ~ZRelocateMediumAllocator() {
     _shared_targets->apply_and_clear_targets([&](ZPage* page) {

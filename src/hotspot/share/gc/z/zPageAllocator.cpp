@@ -547,21 +547,19 @@ public:
   }
 
   void send_event(bool successful) {
-    EventZPageAllocation event;
-
     Ticks end_timestamp = Ticks::now();
     const ZPageAllocationStats st = stats();
 
-    event.commit(_start_timestamp,
-                 end_timestamp,
-                 (u8)_type,
-                 size(),
-                 st._total_harvested,
-                 st._total_committed_capacity,
-                 (unsigned)st._num_harvested_vmems,
-                 _is_multi_partition,
-                 successful,
-                 _flags.non_blocking());
+    EventZPageAllocation::commit(_start_timestamp,
+                                 end_timestamp,
+                                 (u8)_type,
+                                 size(),
+                                 st._total_harvested,
+                                 st._total_committed_capacity,
+                                 (unsigned)st._num_harvested_vmems,
+                                 _is_multi_partition,
+                                 successful,
+                                 _flags.non_blocking());
   }
 };
 
@@ -1424,8 +1422,10 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
     log_debug(gc, heap)("Mapped Cache Harvested: %zuM (%d)", harvested / M, num_harvested_vmems);
   }
 
-  // Send event for successful allocation
-  allocation.send_event(true /* successful */);
+  if (EventZPageAllocation::is_enabled()) {
+    // Send event for successful allocation
+    allocation.send_event(true /* successful */);
+  }
 
   return page;
 }
@@ -1993,8 +1993,10 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
 }
 
 void ZPageAllocator::free_after_alloc_page_failed(ZPageAllocation* allocation) {
-  // Send event for failed allocation
-  allocation->send_event(false /* successful */);
+  if (EventZPageAllocation::is_enabled()) {
+    // Send event for failed allocation
+    allocation->send_event(false /* successful */);
+  }
 
   ZLocker<ZLock> locker(&_lock);
 

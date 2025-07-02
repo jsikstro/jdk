@@ -898,11 +898,31 @@ size_t os::rss() {
 }
 
 bool os::has_allocatable_memory_limit(size_t* limit) {
-  MEMORYSTATUSEX ms;
-  ms.dwLength = sizeof(ms);
-  GlobalMemoryStatusEx(&ms);
-  *limit = (size_t)ms.ullAvailVirtual;
-  return true;
+  // We check if there are any Job Object limits on either the process or the
+  // job.
+
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {};
+  if (!QueryInformationJobObject(nullptr, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli), nullptr)) {
+    // If there was an error querying the information, conservatively assume no limit.
+    return false;
+  }
+
+  if (jeli.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_PROCESS_MEMORY) {
+    *limit = jeli.ProcessMemoryLimit;
+    return true;
+  }
+
+  if (jeli.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_JOB_MEMORY) {
+    *limit = jeli.JobMemoryLimit;
+    return true;
+  }
+
+  return false;
+}
+
+bool os::has_limited_virtual_address_space(size_t* limit) {
+  // Virtual address space cannot be limited on Windows.
+  return false;
 }
 
 int os::active_processor_count() {

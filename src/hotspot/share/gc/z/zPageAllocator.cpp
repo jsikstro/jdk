@@ -547,6 +547,11 @@ public:
   }
 
   void send_event(bool successful) {
+    if (!EventZPageAllocation::is_enabled()) {
+      // Event not enabled, exit early
+      return;
+    }
+
     Ticks end_timestamp = Ticks::now();
     const ZPageAllocationStats st = stats();
 
@@ -1422,10 +1427,8 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
     log_debug(gc, heap)("Mapped Cache Harvested: %zuM (%d)", harvested / M, num_harvested_vmems);
   }
 
-  if (EventZPageAllocation::is_enabled()) {
-    // Send event for successful allocation
-    allocation.send_event(true /* successful */);
-  }
+  // Send event for successful allocation
+  allocation.send_event(true /* successful */);
 
   return page;
 }
@@ -1993,10 +1996,8 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
 }
 
 void ZPageAllocator::free_after_alloc_page_failed(ZPageAllocation* allocation) {
-  if (EventZPageAllocation::is_enabled()) {
-    // Send event for failed allocation
-    allocation->send_event(false /* successful */);
-  }
+  // Send event for failed allocation
+  allocation->send_event(false /* successful */);
 
   ZLocker<ZLock> locker(&_lock);
 

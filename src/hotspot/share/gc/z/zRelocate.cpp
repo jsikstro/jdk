@@ -904,7 +904,7 @@ private:
     assert(ZHeap::heap()->is_object_live(addr), "Should be live");
 
     const ZPageAge to_age = _forwarding->to_age();
-    const uint32_t preferred_partition = _forwarding->target_partition_id();
+    const uint32_t preferred_partition = _forwarding->source_partition_id();
 
     while (!try_relocate_object(addr, preferred_partition)) {
       // Failed to relocate object, try to allocate a new target page,
@@ -1033,7 +1033,7 @@ public:
       page->log_msg(" (relocate page done in-place)");
 
       // Different pages when promoting
-      const uint32_t target_partition = _forwarding->target_partition_id();
+      const uint32_t target_partition = _forwarding->source_partition_id();
       ZPage* const target_page = _targets->get(_forwarding->to_age(), target_partition);
       _allocator->share_target_page(target_page, target_partition);
 

@@ -105,20 +105,11 @@ inline size_t ZForwarding::object_alignment_shift() const {
 
 inline uint32_t ZForwarding::source_partition_id() const {
   if (_page->is_multi_partition()) {
-    return 0;
-  }
-
-  return _page->single_partition_id();
-}
-
-inline uint32_t ZForwarding::target_partition_id() const {
-  if (_page->is_multi_partition()) {
-    // Multi-partition pages don't belong to any specific partition,
+    // Multi-partition pages don't belong to any specific partition.
     // use the affinity of the current thread doing relocation
     return ZNUMA::id();
   }
 
-  // The target partition is the same as the partition the page is on
   return _page->single_partition_id();
 }
 

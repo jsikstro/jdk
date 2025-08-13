@@ -506,10 +506,10 @@ private:
   volatile size_t     _in_place_count;
 
 public:
-  ZRelocateMediumAllocator(ZGeneration* generation, ZRelocationTargets* targets)
+  ZRelocateMediumAllocator(ZGeneration* generation, ZRelocationTargets* shared_targets)
     : _generation(generation),
       _lock(),
-      _shared_targets(targets),
+      _shared_targets(shared_targets),
       _in_place(false),
       _in_place_count(0) {}
 

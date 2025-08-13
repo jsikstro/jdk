@@ -646,7 +646,7 @@ ZPartition::ZPartition(uint32_t numa_id,
   : _page_allocator(page_allocator),
     _cache(),
     _uncommitter(numa_id, this),
-    _committer(numa_id, this),
+    _mem_worker(numa_id, this),
     _min_capacity(ZNUMA::calculate_share(numa_id, min_capacity)),
     _static_max_capacity(ZNUMA::calculate_share(numa_id, static_max_capacity)),
     _committed(0),
@@ -696,12 +696,12 @@ ZUncommitter& ZPartition::uncommitter() {
   return _uncommitter;
 }
 
-const ZCommitter& ZPartition::committer() const {
-  return _committer;
+const ZMemoryWorker& ZPartition::memory_worker() const {
+  return _mem_worker;
 }
 
-ZCommitter& ZPartition::committer() {
-  return _committer;
+ZMemoryWorker& ZPartition::memory_worker() {
+  return _mem_worker;
 }
 
 uint32_t ZPartition::numa_id() const {
@@ -1115,7 +1115,7 @@ void ZPartition::map_virtual(const ZVirtualMemory& vmem, bool heat_memory) {
 
   if (heat_memory) {
     // Register a heating request for this mapping
-    _committer.register_heating_request(vmem);
+    _mem_worker.register_heating_request(vmem);
   }
 }
 
@@ -1123,7 +1123,7 @@ void ZPartition::unmap_virtual(const ZVirtualMemory& vmem) {
   verify_virtual_memory_association(vmem);
 
   // Remove any heating request before unmapping
-  _committer.remove_heating_request(vmem);
+  _mem_worker.remove_heating_request(vmem);
 
   ZPhysicalMemoryManager& manager = physical_memory_manager();
 
@@ -1143,14 +1143,14 @@ void ZPartition::map_virtual_from_multi_partition(const ZVirtualMemory& vmem) {
   manager.map(vmem, _numa_id);
 
   // Register a heating request for this mapping
-  _committer.register_heating_request(vmem);
+  _mem_worker.register_heating_request(vmem);
 }
 
 void ZPartition::unmap_virtual_from_multi_partition(const ZVirtualMemory& vmem) {
   verify_virtual_memory_multi_partition_association(vmem);
 
   // Remove any heating request before unmapping
-  _committer.remove_heating_request(vmem);
+  _mem_worker.remove_heating_request(vmem);
 
   ZPhysicalMemoryManager& manager = physical_memory_manager();
 
@@ -1663,8 +1663,9 @@ void ZPageAllocator::heap_resized(size_t selected_capacity) {
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
     // Update committer target capacity
-    ZCommitter& committer = partition->committer();
-    committer.heap_resized(partition->capacity(), selected_capacity_share);
+    // TODO: Increase vs decrease?!
+    ZMemoryWorker& mem_worker = partition->memory_worker();
+    mem_worker.heap_resized(partition->capacity(), selected_capacity_share);
   }
 
   // Complain about misconfigurations
@@ -1680,8 +1681,8 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
     // Update committer target capacity
-    ZCommitter& committer = partition->committer();
-    committer.heap_truncated(selected_capacity_share);
+    ZMemoryWorker& mem_worker = partition->memory_worker();
+    mem_worker.heap_truncated(selected_capacity_share);
   }
 
   // Complain about misconfigurations
@@ -1710,9 +1711,9 @@ void ZPageAllocator::adjust_capacity(size_t used_soon) {
 
     const uint32_t numa_id = partition->numa_id();
     const size_t used_soon_share = ZNUMA::calculate_share(numa_id, used_soon);
-    ZCommitter& committer = partition->committer();
-    if (used_soon_share > committer.target_capacity()) {
-      committer.grow_target_capacity(used_soon_share);
+    ZMemoryWorker& mem_worker = partition->memory_worker();
+    if (used_soon_share > mem_worker.target_capacity()) {
+      mem_worker.grow_target_capacity(used_soon_share);
     }
   }
 }

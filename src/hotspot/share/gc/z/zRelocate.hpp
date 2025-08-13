@@ -84,8 +84,8 @@ private:
 public:
   ZRelocationTargets();
 
-  ZPage* get(ZPageAge age, uint32_t partition_id);
-  void set(ZPageAge age, uint32_t partition_id, ZPage* page);
+  ZPage* get(uint32_t partition_id, ZPageAge age);
+  void set(uint32_t partition_id, ZPageAge age, ZPage* page);
 
   template <typename Function>
   void apply_and_clear_targets(Function function);

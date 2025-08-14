@@ -62,6 +62,7 @@ inline ZForwarding::ZForwarding(ZPage* page, ZPageAge to_age, size_t nentries)
     _object_alignment_shift(page->object_alignment_shift()),
     _entries(nentries),
     _page(page),
+    _target_partition_id(determine_target_partition(page)),
     _from_age(page->age()),
     _to_age(to_age),
     _claimed(false),
@@ -74,6 +75,17 @@ inline ZForwarding::ZForwarding(ZPage* page, ZPageAge to_age, size_t nentries)
     _in_place(false),
     _in_place_top_at_start(),
     _in_place_thread(nullptr) {}
+
+inline uint32_t ZForwarding::determine_target_partition(ZPage* page) const {
+  if (page->is_multi_partition()) {
+    // Multi-partition pages don't belong to any specific partition.
+    // Use the affinity of the current thread doing relocation.
+    return (uint32_t)-1;
+  }
+
+  // The target partition is the same as the source partition.
+  return page->single_partition_id();
+}
 
 inline ZPageType ZForwarding::type() const {
   return _page->type();
@@ -103,14 +115,8 @@ inline size_t ZForwarding::object_alignment_shift() const {
   return _object_alignment_shift;
 }
 
-inline uint32_t ZForwarding::source_partition_id() const {
-  if (_page->is_multi_partition()) {
-    // Multi-partition pages don't belong to any specific partition.
-    // use the affinity of the current thread doing relocation
-    return ZNUMA::id();
-  }
-
-  return _page->single_partition_id();
+inline uint32_t ZForwarding::target_partition_id() const {
+  return _target_partition_id;
 }
 
 inline bool ZForwarding::is_promotion() const {

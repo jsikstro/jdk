@@ -59,6 +59,7 @@ private:
   const size_t           _object_alignment_shift;
   const AttachedArray    _entries;
   ZPage* const           _page;
+  const uint32_t         _target_partition_id;
   const ZPageAge         _from_age;
   const ZPageAge         _to_age;
   volatile bool          _claimed;
@@ -77,6 +78,8 @@ private:
 
   // Debugging
   volatile Thread*       _in_place_thread;
+
+  uint32_t determine_target_partition(ZPage* page) const;
 
   ZForwardingEntry* entries() const;
   ZForwardingEntry at(ZForwardingCursor* cursor) const;
@@ -108,7 +111,7 @@ public:
   size_t size() const;
   size_t object_alignment_shift() const;
 
-  uint32_t source_partition_id() const;
+  uint32_t target_partition_id() const;
 
   bool is_promotion() const;
 
@@ -145,7 +148,7 @@ public:
   void release_page();
 
   ZPage* detach_page();
-  ZPage* page();
+  ZPage* page() const;
 
   void mark_done();
   bool is_done() const;

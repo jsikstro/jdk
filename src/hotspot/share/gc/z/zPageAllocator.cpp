@@ -428,7 +428,7 @@ public:
       _start_timestamp(Ticks::now()),
       _young_seqnum(ZGeneration::young()->seqnum()),
       _old_seqnum(ZGeneration::old()->seqnum()),
-      _initiating_numa_id(preferred_partition == -1u ? ZNUMA::id() : preferred_partition),
+      _initiating_numa_id(preferred_partition == (uint32_t)-1 ? ZNUMA::id() : preferred_partition),
       _is_multi_partition(false),
       _single_partition_allocation(size),
       _multi_partition_allocation(size),

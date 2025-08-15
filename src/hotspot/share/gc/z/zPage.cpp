@@ -58,7 +58,7 @@ ZPage::ZPage(ZPageType type, ZPageAge age, const ZVirtualMemory& vmem, uint32_t 
   : ZPage(type, age, vmem, nullptr /* multi_partition_tracker */, partition_id) {}
 
 ZPage::ZPage(ZPageType type, ZPageAge age, const ZVirtualMemory& vmem, ZMultiPartitionTracker* multi_partition_tracker)
-  : ZPage(type, age, vmem, multi_partition_tracker, -1u /* partition_id */) {}
+  : ZPage(type, age, vmem, multi_partition_tracker, (uint32_t)-1 /* partition_id */) {}
 
 ZPage* ZPage::clone_for_promotion() const {
   assert(_age != ZPageAge::old, "must be used for promotion");

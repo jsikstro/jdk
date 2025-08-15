@@ -414,7 +414,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZForwarding* forwarding, uint32_t partition_id) {
+static ZPage* alloc_page(ZForwarding* forwarding) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -424,12 +424,13 @@ static ZPage* alloc_page(ZForwarding* forwarding, uint32_t partition_id) {
   const ZPageType type = forwarding->type();
   const size_t size = forwarding->size();
   const ZPageAge age = forwarding->to_age();
+  const uint32_t preferred_partition = forwarding->partition_id_for_allocation();
 
   ZAllocationFlags flags;
   flags.set_non_blocking();
   flags.set_gc_relocation();
 
-  return ZHeap::heap()->alloc_page(type, size, flags, age, partition_id);
+  return ZHeap::heap()->alloc_page(type, size, flags, age, preferred_partition);
 }
 
 static void retire_target_page(ZGeneration* generation, ZPage* page) {
@@ -458,8 +459,8 @@ public:
     : _generation(generation),
       _in_place_count(0) {}
 
-  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t partition_id) {
-    ZPage* const page = alloc_page(forwarding, partition_id);
+  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t /* unused */) {
+    ZPage* const page = alloc_page(forwarding);
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);
     }
@@ -533,7 +534,7 @@ public:
     // a new page.
     const ZPageAge to_age = forwarding->to_age();
     if (_shared_targets->get(partition_id, to_age) == target) {
-      ZPage* const to_page = alloc_page(forwarding, partition_id);
+      ZPage* const to_page = alloc_page(forwarding);
       _shared_targets->set(partition_id, to_age, to_page);
       if (to_page == nullptr) {
         Atomic::inc(&_in_place_count);
@@ -902,7 +903,7 @@ private:
     assert(ZHeap::heap()->is_object_live(addr), "Should be live");
 
     const ZPageAge to_age = _forwarding->to_age();
-    const uint32_t preferred_partition = _forwarding->target_partition_id();
+    const uint32_t preferred_partition = _forwarding->partition_id_for_relocation();
 
     while (!try_relocate_object(addr, preferred_partition)) {
       // Failed to relocate object, try to allocate a new target page,
@@ -1031,7 +1032,7 @@ public:
       page->log_msg(" (relocate page done in-place)");
 
       // Different pages when promoting
-      const uint32_t target_partition = _forwarding->target_partition_id();
+      const uint32_t target_partition = _forwarding->partition_id_for_relocation();
       ZPage* const target_page = _targets->get(target_partition, _forwarding->to_age());
       _allocator->share_target_page(target_page, target_partition);
 
@@ -1151,9 +1152,7 @@ public:
     };
 
     const auto check_numa_local = [&](ZForwarding* forwarding, uint32_t numa_id) {
-      const uint32_t partition = forwarding->target_partition_id();
-      // Someone needs to take care of a multi-partition page, so we do it eagerly.
-      return partition == numa_id || partition == (uint32_t)-1;
+      return forwarding->partition_id_for_relocation() == numa_id;
     };
 
     const auto do_forwarding_one_from_iter = [&]() {

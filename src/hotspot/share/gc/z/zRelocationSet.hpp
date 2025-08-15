@@ -37,7 +37,6 @@ class ZWorkers;
 
 class ZRelocationSet {
   template <bool> friend class ZRelocationSetIteratorImpl;
-  friend class ZRelocationSetNUMAIterator;
 
 private:
   ZGeneration*         _generation;
@@ -70,10 +69,5 @@ public:
 
 using ZRelocationSetIterator = ZRelocationSetIteratorImpl<false /* Parallel */>;
 using ZRelocationSetParallelIterator = ZRelocationSetIteratorImpl<true /* Parallel */>;
-
-class ZRelocationSetNUMAIterator : public ZArrayIteratorImpl<ZForwarding*, true /* Parallel */> {
-public:
-  ZRelocationSetNUMAIterator(ZRelocationSet* relocation_set);
-};
 
 #endif // SHARE_GC_Z_ZRELOCATIONSET_HPP

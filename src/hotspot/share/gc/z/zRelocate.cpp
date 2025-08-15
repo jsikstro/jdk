@@ -1079,7 +1079,7 @@ public:
 
 class ZRelocateTask : public ZRestartableTask {
 private:
-  ZRelocationSetNUMAIterator*     _iters;
+  ZRelocationSetParallelIterator* _iters;
   ZGeneration* const              _generation;
   ZRelocateQueue* const           _queue;
   ZPerWorker<ZRelocationTargets>* _small_targets;
@@ -1103,9 +1103,9 @@ public:
       _medium_allocator(_generation, shared_medium_targets) {
 
     // Allocate and initialize per-numa iterator
-    _iters = NEW_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, ZNUMA::count(), mtGC);
+    _iters = NEW_C_HEAP_ARRAY(ZRelocationSetParallelIterator, ZNUMA::count(), mtGC);
     for (uint32_t i = 0; i < ZNUMA::count(); i++) {
-      ::new (&_iters[i]) ZRelocationSetNUMAIterator(relocation_set);
+      ::new (&_iters[i]) ZRelocationSetParallelIterator(relocation_set);
     }
   }
 
@@ -1117,10 +1117,10 @@ public:
 
     // Call destructors for each per-numa iterator and free the backing array
     for (uint32_t i = 0; i < ZNUMA::count(); i++) {
-      _iters[i].~ZRelocationSetNUMAIterator();
+      _iters[i].~ZRelocationSetParallelIterator();
     }
 
-    FREE_C_HEAP_ARRAY(ZRelocationSetNUMAIterator, _iters);
+    FREE_C_HEAP_ARRAY(ZRelocationSetParallelIterator, _iters);
   }
 
   virtual void work() {

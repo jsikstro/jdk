@@ -1161,7 +1161,7 @@ public:
       uint32_t current_node = ZNUMA::id();
 
       for (uint32_t i = 0; i < num_nodes; i++) {
-        if (_iters[current_node].next_if(&forwarding, check_numa_local, current_node)) {
+        if (_iters[current_node].next_match(&forwarding, check_numa_local, current_node)) {
           claim_and_do_forwarding(forwarding);
           return true;
         }

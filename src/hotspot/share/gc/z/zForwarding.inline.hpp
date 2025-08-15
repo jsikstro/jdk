@@ -33,7 +33,6 @@
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
-#include "gc/z/zNUMA.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"

@@ -1151,7 +1151,9 @@ public:
     };
 
     const auto check_numa_local = [&](ZForwarding* forwarding, uint32_t numa_id) {
-      return forwarding->target_partition_id() == numa_id;
+      const uint32_t partition = forwarding->target_partition_id();
+      // Someone needs to take care of a multi-partition page, so we do it eagerly.
+      return partition == numa_id || partition == (uint32_t)-1;
     };
 
     const auto do_forwarding_one_from_iter = [&]() {

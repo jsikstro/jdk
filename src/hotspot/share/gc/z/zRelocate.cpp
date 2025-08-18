@@ -459,7 +459,7 @@ public:
     : _generation(generation),
       _in_place_count(0) {}
 
-  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t /* unused */) {
+  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target, uint32_t /* partition_id - ignored */) {
     ZPage* const page = alloc_page(forwarding);
     if (page == nullptr) {
       Atomic::inc(&_in_place_count);

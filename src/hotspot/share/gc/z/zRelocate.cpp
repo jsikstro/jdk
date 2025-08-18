@@ -903,15 +903,15 @@ private:
     assert(ZHeap::heap()->is_object_live(addr), "Should be live");
 
     const ZPageAge to_age = _forwarding->to_age();
-    const uint32_t preferred_partition = _forwarding->partition_id_for_relocation();
+    const uint32_t partition_id = _forwarding->partition_id_for_relocation();
 
-    while (!try_relocate_object(addr, preferred_partition)) {
+    while (!try_relocate_object(addr, partition_id)) {
       // Failed to relocate object, try to allocate a new target page,
       // or if that fails, use the page being relocated as the new target,
       // which will cause it to be relocated in-place.
-      ZPage* const target_page = _targets->get(preferred_partition, to_age);
-      ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target_page, preferred_partition);
-      _targets->set(preferred_partition, to_age, to_page);
+      ZPage* const target_page = _targets->get(partition_id, to_age);
+      ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target_page, partition_id);
+      _targets->set(partition_id, to_age, to_page);
 
       // We got a new page, retry relocation
       if (to_page != nullptr) {
@@ -922,7 +922,7 @@ private:
       // the page, or its forwarding table, until it has been released
       // (relocation completed).
       to_page = start_in_place_relocation(ZAddress::offset(addr));
-      _targets->set(preferred_partition, to_age, to_page);
+      _targets->set(partition_id, to_age, to_page);
     }
   }
 

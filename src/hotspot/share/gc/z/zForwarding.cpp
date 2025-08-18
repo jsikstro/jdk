@@ -181,7 +181,7 @@ ZPage* ZForwarding::detach_page() {
   return _page;
 }
 
-ZPage* ZForwarding::page() const {
+ZPage* ZForwarding::page() {
   assert(Atomic::load(&_ref_count) != 0, "The page has been released/detached");
   return _page;
 }

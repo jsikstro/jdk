@@ -147,7 +147,7 @@ public:
   void release_page();
 
   ZPage* detach_page();
-  ZPage* page() const;
+  ZPage* page();
 
   void mark_done();
   bool is_done() const;

@@ -30,6 +30,7 @@
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zUtils.inline.hpp"
+#include "logging/log.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
@@ -56,9 +57,19 @@ void ZArguments::set_heap_size() {
 
   ZAdaptiveHeap::initialize(explicit_max_heap_size);
 
-  if (Atomic::load(&ZGCPressure) == 0.0) {
+  if (!ZAdaptiveHeap::can_adapt()) {
     // When automatic heap sizing is disabled, don't try to prepare the default
     // heap size in the automatic heap sizing friendly way.
+
+    if (Atomic::load(&ZGCPressure) != 0.0) {
+      if (FLAG_IS_CMDLINE(ZGCPressure)) {
+        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
+                        "Adaptive heap sizing is not available.");
+      }
+      // If the heap size is fixed, set ZGCPressure to 0.0
+      FLAG_SET_ERGO(ZGCPressure, 0.0);
+    }
+
     return;
   }
 

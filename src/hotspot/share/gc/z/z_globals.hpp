@@ -39,6 +39,7 @@
                                                                             \
   product(double, ZGCPressure, 5, MANAGEABLE,                               \
           "Level of GC pressure, used for automatic heap sizing policies")  \
+          constraint(ZGCPressureConstraintFunc, AfterErgo)                  \
                                                                             \
   product(double, ZFragmentationLimit, 5.0,                                 \
           "Maximum allowed heap fragmentation")                             \

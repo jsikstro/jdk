@@ -1234,7 +1234,7 @@ double os::elapsed_system_cpu_time() {
                 windows_to_time_ticks(idle);
 
   // Ticks are 100 ns
-  return double(ticks) / 10000000.0;
+  return double(ticks) / 1e7;
 }
 
 jlong os::javaTimeMillis() {

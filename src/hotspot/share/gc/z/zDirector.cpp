@@ -950,6 +950,11 @@ static ZDirectorStats sample_stats() {
 }
 
 static void adjust_capacity(const ZDirectorStats& stats, double sampling_interval) {
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // We do not asynchronously adjust the capacity without adaptive heap sizing.
+    return;
+  }
+
   const size_t used = stats._heap._used;
   const size_t max_capacity = stats._heap._current_max_capacity;
 

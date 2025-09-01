@@ -377,7 +377,7 @@ void ZGeneration::at_collection_start(ConcurrentGCTimer* gc_timer) {
 void ZGeneration::at_collection_end() {
   workers()->set_inactive();
   stat_cycle()->at_end(stat_workers(), should_record_stats());
-  if (should_record_stats()) {
+  if (should_record_stats() && ZAdaptiveHeap::can_adapt()) {
     ZHeap::heap()->adapt_heuristic_max_capacity(_id);
   }
   // The heap at collection end data is gathered at relocate end

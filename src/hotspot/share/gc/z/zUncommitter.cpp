@@ -32,7 +32,6 @@
 #include "gc/z/zUncommitter.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
-#include "runtime/init.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -54,21 +53,19 @@ ZUncommitter::ZUncommitter(uint32_t id, ZPartition* partition)
     _cycle_start(0.0),
     _to_uncommit(0),
     _uncommitted(0) {
+  if (!ZUncommit || ZAdaptiveHeap::can_adapt()) {
+    // Disabled, do not start.
+    _stop = true;
+    return;
+  }
+
   set_name("ZUncommitter#%u", id);
   create_and_start();
 }
 
 bool ZUncommitter::wait(uint64_t timeout) const {
   ZLocker<ZConditionLock> locker(&_lock);
-  while (ZAdaptiveHeap::can_adapt()) {
-    // Just wait until shutdown when time based uncommit is disabled
-    if (_stop) {
-      return false;
-    }
-    _lock.wait();
-  }
-
-  if (timeout > 0) {
+  if (!_stop && timeout > 0) {
     if (!uncommit_cycle_is_finished()) {
       log_trace(gc, heap)("Uncommitter (%u) Timeout: " UINT64_FORMAT "ms left to uncommit: "
                           EXACTFMT, _id, timeout, EXACTFMTARGS(_to_uncommit));
@@ -97,7 +94,7 @@ bool ZUncommitter::wait(uint64_t timeout) const {
 
 bool ZUncommitter::should_continue() const {
   ZLocker<ZConditionLock> locker(&_lock);
-  return is_init_completed() && !_stop;
+  return !_stop;
 }
 
 void ZUncommitter::update_statistics(size_t uncommitted, Ticks start, Tickspan* accumulated_time) const {

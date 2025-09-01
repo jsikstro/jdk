@@ -97,7 +97,6 @@ public:
   void grow_target_capacity(size_t target_capacity);
   void shrink_target_capacity(size_t target_capacity);
   void critical_shrink_target_capacity();
-  void set_target_capacity(size_t target_capacity);
   size_t target_capacity();
 
   void register_heating_request(const ZVirtualMemory& vmem);

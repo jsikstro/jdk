@@ -22,9 +22,11 @@
  */
 
 #include "gc/shared/gcLogPrecious.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zInitialize.hpp"
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zNMT.hpp"
@@ -108,6 +110,12 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   // and then uncommitting a granule.
   const ZVirtualMemory vmem(zoffset(0), ZGranuleSize);
   if (!commit(vmem, (uint32_t)-1) || !uncommit(vmem)) {
+    if (ZAdaptiveHeap::can_adapt()) {
+      ZInitialize::error("Uncommit not supported with the current configuration. "
+                         "Either use -XX:ZGCPressure=0.0 to run without adaptive heap sizing, "
+                         "or -XX:-ZUncommit to run adaptive heap sizing without uncommit.");
+      return;
+    }
     log_info_p(gc, init)("Uncommit: Implicitly Disabled (Not supported by operating system)");
     FLAG_SET_ERGO(ZUncommit, false);
     return;

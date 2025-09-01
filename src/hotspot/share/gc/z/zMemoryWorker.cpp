@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLock.inline.hpp"
@@ -56,6 +57,11 @@ ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
     _target_capacity(0),
     _stop(false),
     _currently_heating() {
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // Disabled, do not start.
+    _stop = true;
+    return;
+  }
   set_name("ZMemoryWorker#%u", _id);
   create_and_start();
 }
@@ -81,6 +87,8 @@ size_t ZMemoryWorker::uncommit_granule() {
 }
 
 bool ZMemoryWorker::should_commit(size_t granule, size_t capacity, size_t target_capacity, size_t curr_max_capacity, const ZMemoryPressureMetrics& metrics) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   if (capacity > target_capacity) {
     return false;
   }
@@ -108,6 +116,8 @@ bool ZMemoryWorker::should_commit(size_t granule, size_t capacity, size_t target
 }
 
 bool ZMemoryWorker::should_uncommit(size_t granule, size_t capacity, size_t target_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   if (!ZUncommit) {
     // Uncommit explicitly disabled; don't uncommit.
     return false;
@@ -146,7 +156,7 @@ bool ZMemoryWorker::peek() {
       return false;
     }
 
-    if (!is_init_completed() || !ZAdaptiveHeap::can_adapt()) {
+    if (!is_init_completed()) {
       // Don't start working until JVM is bootstrapped
       _lock.wait();
       continue;
@@ -171,10 +181,14 @@ bool ZMemoryWorker::peek() {
 }
 
 size_t ZMemoryWorker::target_capacity() {
+  precond(ZAdaptiveHeap::can_adapt());
+
   return Atomic::load(&_target_capacity);
 }
 
 void ZMemoryWorker::heap_resized(size_t capacity, size_t heuristic_max_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   if (capacity <= heuristic_max_capacity) {
     // Heap increases are handled lazily through the director monitoring
     // This allows growing to be more vigilant and not have to wait for
@@ -217,15 +231,14 @@ void ZMemoryWorker::heap_resized(size_t capacity, size_t heuristic_max_capacity)
 }
 
 void ZMemoryWorker::heap_truncated(size_t capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   shrink_target_capacity(capacity);
 }
 
-void ZMemoryWorker::set_target_capacity(size_t target_capacity) {
-  ZLocker<ZConditionLock> locker(&_lock);
-  Atomic::store(&_target_capacity, target_capacity);
-}
-
 void ZMemoryWorker::grow_target_capacity(size_t target_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   const size_t curr_max_capacity = _partition->current_max_capacity();
   const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
 
@@ -247,23 +260,32 @@ void ZMemoryWorker::grow_target_capacity(size_t target_capacity) {
 }
 
 void ZMemoryWorker::shrink_target_capacity(size_t target_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   ZLocker<ZConditionLock> locker(&_lock);
-  if (target_capacity > _target_capacity) {
+  // When ZUncommit is disabled, we shrink the target to at most the capacity.
+  const size_t new_target_capacity = ZUncommit
+      ? target_capacity
+      : MAX2(_target_capacity, _partition->capacity());
+
+  if (new_target_capacity > _target_capacity) {
     // Doesn't seem to be shrinking any more
     return;
   }
-  Atomic::store(&_target_capacity, target_capacity);
+  Atomic::store(&_target_capacity, new_target_capacity);
 
   const size_t capacity = _partition->capacity();
   const size_t granule = uncommit_granule();
 
-  if (should_uncommit(granule, capacity, target_capacity)) {
+  if (should_uncommit(granule, capacity, new_target_capacity)) {
     // At least one granule to commit
     _lock.notify_all();
   }
 }
 
 void ZMemoryWorker::critical_shrink_target_capacity() {
+  precond(ZAdaptiveHeap::can_adapt());
+
   const size_t capacity = _partition->capacity();
   const size_t granule = uncommit_granule();
 
@@ -305,6 +327,8 @@ void ZMemoryWorker::remove_heating_request_range(const ZVirtualMemory& vmem) {
 }
 
 void ZMemoryWorker::register_heating_request(const ZVirtualMemory& vmem) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   ZLocker<ZConditionLock> locker(&_lock);
   if (_stop) {
     // Don't add more requests during termination
@@ -363,6 +387,8 @@ ZVirtualMemory ZMemoryWorker::pop_heating_request() {
 }
 
 void ZMemoryWorker::remove_heating_request(const ZVirtualMemory& vmem) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   ZLocker<ZConditionLock> locker(&_lock);
 
   while (!_currently_heating.is_null() && vmem.overlaps(_currently_heating)) {
@@ -444,15 +470,6 @@ size_t ZMemoryWorker::process_heating_request() {
 
 void ZMemoryWorker::run_thread() {
   for (;;) {
-    while (!ZAdaptiveHeap::can_adapt()) {
-      ZLocker<ZConditionLock> locker(&_lock);
-      // Just wait until shutdown when automatic heap sizing is disabled
-      if (_stop) {
-        return;
-      }
-      _lock.wait();
-    }
-
     if (!peek()) {
       // Stop
       return;

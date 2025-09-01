@@ -1095,7 +1095,7 @@ void ZPartition::map_virtual(const ZVirtualMemory& vmem, bool heat_memory) {
   // Map virtual memory to physical memory
   manager.map(vmem, _numa_id);
 
-  if (heat_memory) {
+  if (heat_memory && ZAdaptiveHeap::can_adapt()) {
     // Register a heating request for this mapping
     _mem_worker.register_heating_request(vmem);
   }
@@ -1104,8 +1104,10 @@ void ZPartition::map_virtual(const ZVirtualMemory& vmem, bool heat_memory) {
 void ZPartition::unmap_virtual(const ZVirtualMemory& vmem) {
   verify_virtual_memory_association(vmem);
 
-  // Remove any heating request before unmapping
-  _mem_worker.remove_heating_request(vmem);
+  if (ZAdaptiveHeap::can_adapt()) {
+    // Remove any heating request before unmapping
+    _mem_worker.remove_heating_request(vmem);
+  }
 
   ZPhysicalMemoryManager& manager = physical_memory_manager();
 
@@ -1391,8 +1393,13 @@ void ZPartition::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
 }
 
 void ZPartition::threads_do(ThreadClosure* tc) const {
-  tc->do_thread(const_cast<ZUncommitter*>(&_uncommitter));
-  tc->do_thread(const_cast<ZMemoryWorker*>(&_mem_worker));
+  if (ZUncommit && !ZAdaptiveHeap::can_adapt()) {
+    // ZUncommitter is not created
+    tc->do_thread(const_cast<ZUncommitter*>(&_uncommitter));
+  }
+  if (ZAdaptiveHeap::can_adapt()) {
+    tc->do_thread(const_cast<ZMemoryWorker*>(&_mem_worker));
+  }
 }
 
 void ZPartition::print_on(outputStream* st) const {
@@ -1639,6 +1646,8 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
 }
 
 void ZPageAllocator::heap_resized(size_t selected_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
     const uint32_t numa_id = partition->numa_id();
@@ -1657,6 +1666,11 @@ void ZPageAllocator::heap_resized(size_t selected_capacity) {
 }
 
 void ZPageAllocator::heap_truncated(size_t selected_capacity) {
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // ZMemoryWorker are only used with adaptive heap sizing.
+    return;
+  }
+
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
     const uint32_t numa_id = partition->numa_id();
@@ -1879,7 +1893,7 @@ ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation, ZPageAlloca
   //
   // Note that this call might block in a safepoint if the non-blocking flag is
   // not set.
-  if (!claim_capacity_or_stall(allocation, attempt)) {
+  if (!claim_capacity_or_stall(allocation, &attempt)) {
     // Out of memory
     return nullptr;
   }
@@ -1912,20 +1926,19 @@ ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation, ZPageAlloca
   // Commit memory for the increased capacity and map the entire vmem.
   if (!commit_and_map(allocation, vmem)) {
     free_after_alloc_page_failed(allocation);
-    // TODO: Something smells fishy here
-    //assert(attempt != ZPageAllocationAttempt::retry, "Shouldn't retry more than once");
+    assert(attempt != ZPageAllocationAttempt::retry, "Should be retry or stall");
     return alloc_page_inner(allocation, ZPageAllocationAttempt::retry);
   }
 
   return create_page(allocation, vmem);
 }
 
-bool ZPageAllocator::claim_capacity_or_stall(ZPageAllocation* allocation, ZPageAllocationAttempt attempt) {
+bool ZPageAllocator::claim_capacity_or_stall(ZPageAllocation* allocation, ZPageAllocationAttempt* attempt) {
   {
     ZLocker<ZLock> locker(&_lock);
 
     // Try to claim memory
-    if (claim_capacity(allocation, attempt)) {
+    if (claim_capacity(allocation, *attempt)) {
       // Keep track of usage
       increase_used(allocation->size());
 
@@ -1941,6 +1954,9 @@ bool ZPageAllocator::claim_capacity_or_stall(ZPageAllocation* allocation, ZPageA
     // Enqueue allocation request
     _stalled.insert_last(allocation);
   }
+
+  // We are stalling on this allocation
+  *attempt = ZPageAllocationAttempt::stall;
 
   // Stall
   return alloc_page_stall(allocation);

@@ -2881,8 +2881,12 @@ void os::pd_commit_memory_or_exit(char* addr, size_t size, bool exec,
 #endif
 
 // Define MADV_COLLAPSE here so we can build HotSpot on old systems.
+#define MADV_COLLAPSE_value 25
 #ifndef MADV_COLLAPSE
-#define MADV_COLLAPSE 25
+#define MADV_COLLAPSE MADV_COLLAPSE_value
+#else
+  // Sanity-check our assumed default value if we build with a new enough libc.
+  STATIC_ASSERT(MADV_COLLAPSE == MADV_COLLAPSE_value);
 #endif
 
 // Note that the value for MAP_FIXED_NOREPLACE differs between architectures, but all architectures
@@ -2938,6 +2942,21 @@ bool os::Linux::madvise_collapse_transparent_huge_pages(void* addr, size_t bytes
     if (result == -1 && errno == EAGAIN) {
       continue;
     }
+    /*
+        API: Does the following quote imply that at least one page per VMA must be paged in?
+
+                 [...]   If the range provided spans multiple
+              VMAs, the semantics of the collapse over each VMA is
+              independent from the others.   [...]   However, for every
+              eligible hugepage-aligned/sized region to be collapsed, at
+              least one page must currently be backed by physical memory.
+
+        NUMA: Does it ignore prefered and/or interleaved aligned memory?
+              Will it only take from one node per madvise call?
+
+              When the system has multiple NUMA nodes, the hugepage will
+              be allocated from the node providing the most native pages.
+    */
 
     return false;
   }

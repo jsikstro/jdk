@@ -30,17 +30,19 @@
 #include "sys/mman.h"
 
 static bool madv_collapse_available() {
-  void* const res = mmap(0, 2 * M, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  const size_t size = 2 * M;
+  void* const res = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
   if (res == MAP_FAILED) {
     return false;
   }
 
+  assert(size >= os::vm_page_size(), "Unexpected page size");
   os::pretouch_memory(res, (void*)(((char*)res) + os::vm_page_size()));
 
-  bool result = os::Linux::madvise_collapse_transparent_huge_pages(res, 2 * M);
+  bool result = os::Linux::madvise_collapse_transparent_huge_pages(res, size);
 
-  munmap(res, 2 * M);
+  munmap(res, size);
 
   return result;
 }

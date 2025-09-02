@@ -37,13 +37,13 @@ JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
 
   if (ZAdaptiveHeap::can_adapt() && value == 0.0) {
     JVMFlag::printError(verbose,
-                        "Cannot dynamically switch ZGCPressure off.");
+                        "Cannot dynamically switch ZGCPressure off.\n");
     return JVMFlag::Error::VIOLATES_CONSTRAINT;
   }
 
   if (!ZAdaptiveHeap::can_adapt() && value != 0.0) {
     JVMFlag::printError(verbose,
-                        "Cannot dynamically switch ZGCPressure on.");
+                        "Cannot dynamically switch ZGCPressure on.\n");
     return JVMFlag::Error::VIOLATES_CONSTRAINT;
   }
 

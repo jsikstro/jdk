@@ -664,6 +664,10 @@ size_t ZPartition::current_max_capacity() const {
   return ZNUMA::calculate_share(_numa_id, _page_allocator->current_max_capacity());
 }
 
+size_t ZPartition::static_max_capacity() const {
+  return _static_max_capacity;
+}
+
 size_t ZPartition::capacity() const {
   return Atomic::load(&_capacity);
 }
@@ -712,6 +716,7 @@ size_t ZPartition::available(size_t limit) const {
   assert(_capacity == _used + _claimed + _cache.size(), "Should be consistent"
           " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
           _capacity, _used, _claimed, _cache.size());
+  assert(limit <= _static_max_capacity, "Invalid limit for partition ");
   const size_t unavailable = _used + _claimed;
 
   if (limit < unavailable) {
@@ -863,7 +868,7 @@ void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* alloca
   ZArray<ZVirtualMemory>* const out = allocation->partial_vmems();
 
   // We are guaranteed to succeed the claiming of capacity here
-  assert(available(limit), "Must be");
+  assert(available(attempt, limit), "Must be");
 
   // Associate the allocation with this partition.
   allocation->set_partition(this);
@@ -920,12 +925,22 @@ bool ZPartition::claim_capacity(ZMemoryAllocation* allocation, ZPageAllocationAt
   return true;
 }
 
-bool ZPartition::claim_capacity_fast_medium(ZMemoryAllocation* allocation) {
+bool ZPartition::claim_capacity_fast_medium(ZMemoryAllocation* allocation, size_t limit) {
   precond(ZPageSizeMediumEnabled);
 
   // Try to allocate a medium page sized contiguous vmem
+  const size_t available_from_cache_limit = available_from_cache(limit);
+  const size_t power_of_2_limit = available_from_cache_limit == 0
+      ? 0
+      : round_down_power_of_2(available_from_cache_limit);
   const size_t min_size = ZPageSizeMediumMin;
-  const size_t max_size = ZStressFastMediumPageAllocation ? min_size : ZPageSizeMediumMax;
+
+  if (power_of_2_limit < min_size) {
+    // No medium allocation size available within the limit.
+    return false;
+  }
+
+  const size_t max_size = MIN2(ZStressFastMediumPageAllocation ? min_size : ZPageSizeMediumMax, power_of_2_limit);
   ZVirtualMemory vmem = _cache.remove_contiguous_power_of_2(min_size, max_size);
 
   if (vmem.is_null()) {
@@ -1993,13 +2008,14 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
   }
 
   // Hard single-partition claiming - start from lowest capacity partition
-  const size_t hard_limit = _static_max_capacity;
-  const size_t hard_partition_limit = ZNUMA::calculate_share(lowest_capacity_id, hard_limit);
+  // TODO: This overrides the soft_limit, should it be respected?
+  const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
   if (claim_capacity_single_partition(allocation->single_partition_allocation(), lowest_capacity_id, attempt, hard_partition_limit)) {
     return true;
   }
 
-  if (!is_multi_partition_allowed(allocation, attempt, hard_partition_limit)) {
+  // TODO: This overrides the soft_limit, should it be respected?
+  if (!is_multi_partition_allowed(allocation, attempt, _static_max_capacity)) {
     // Multi-partition claiming is not possible
     return false;
   }
@@ -2020,17 +2036,36 @@ bool ZPageAllocator::claim_capacity_fast_medium(ZPageAllocation* allocation) {
   const uint32_t start_node = allocation->preferred_partition();
   const uint32_t numa_nodes = ZNUMA::count();
 
+  // Round robin soft single-partition claiming
+  const size_t soft_limit = heuristic_max_capacity();
+
+  const uint32_t num_partitions = _partitions.count();
+  uint32_t lowest_capacity_id = num_partitions;
+  size_t lowest_capacity = std::numeric_limits<size_t>::max();
+
   for (uint32_t i = 0; i < numa_nodes; ++i) {
     const uint32_t numa_id = (start_node + i) % numa_nodes;
     ZPartition& partition = _partitions.get(numa_id);
     ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
 
-    if (partition.claim_capacity_fast_medium(single_partition_allocation->allocation())) {
+    const size_t soft_partition_limit = ZNUMA::calculate_share(numa_id, soft_limit);
+
+    if (partition.claim_capacity_fast_medium(single_partition_allocation->allocation(), soft_partition_limit)) {
       return true;
+    }
+
+    size_t partition_capacity = _partitions.get(numa_id).capacity();
+    if (partition_capacity < lowest_capacity) {
+      lowest_capacity_id = numa_id;
+      lowest_capacity = partition_capacity;
     }
   }
 
-  return false;
+  // Hard single-partition claiming - start from lowest capacity partition
+  ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
+  // TODO: This overrides the soft_limit, should it be respected?
+  const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
+  return _partitions.get(lowest_capacity_id).claim_capacity_fast_medium(single_partition_allocation->allocation(), hard_partition_limit);
 }
 
 bool ZPageAllocator::claim_capacity_single_partition(ZSinglePartitionAllocation* single_partition_allocation, uint32_t partition_id, ZPageAllocationAttempt attempt, size_t limit) {
@@ -2646,10 +2681,10 @@ bool ZPageAllocator::is_multi_partition_enabled() const {
   return _virtual.is_multi_partition_enabled();
 }
 
-bool ZPageAllocator::is_multi_partition_allowed(const ZPageAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit) const {
+bool ZPageAllocator::is_multi_partition_allowed(const ZPageAllocation* allocation, ZPageAllocationAttempt attempt, size_t total_limit) const {
   return is_multi_partition_enabled() &&
          allocation->type() == ZPageType::large &&
-         allocation->size() <= sum_available(attempt, limit);
+         allocation->size() <= sum_available(attempt, total_limit);
 }
 
 const ZPartition& ZPageAllocator::partition_from_partition_id(uint32_t numa_id) const {
@@ -2664,12 +2699,17 @@ ZPartition& ZPageAllocator::partition_from_vmem(const ZVirtualMemory& vmem) {
   return partition_from_partition_id(_virtual.lookup_partition_id(vmem));
 }
 
-size_t ZPageAllocator::sum_available(ZPageAllocationAttempt attempt, size_t limit) const {
+size_t ZPageAllocator::sum_available(ZPageAllocationAttempt attempt, size_t total_limit) const {
   size_t total = 0;
 
   ZPartitionConstIterator iter = partition_iterator();
   for (const ZPartition* partition; iter.next(&partition);) {
-    total += partition->available(attempt, limit);
+    if (total_limit <= total) {
+      // The limit smaller than the total, we will have
+      return total_limit;
+    }
+    const size_t partition_limit = MIN2(partition->static_max_capacity(), total_limit - total);
+    total += partition->available(attempt, partition_limit);
   }
 
   return total;

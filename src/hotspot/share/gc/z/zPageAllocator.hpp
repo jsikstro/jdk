@@ -99,7 +99,7 @@ public:
   void set_current_max_capacity();
   size_t dynamic_max_capacity() const;
   size_t current_max_capacity() const;
-  size_t heuristic_max_capacity() const;
+  size_t static_max_capacity() const;
   size_t capacity() const;
   size_t committed() const;
 
@@ -133,7 +133,7 @@ public:
 
   void claim_from_cache_or_increase_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit);
   bool claim_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit);
-  bool claim_capacity_fast_medium(ZMemoryAllocation* allocation);
+  bool claim_capacity_fast_medium(ZMemoryAllocation* allocation, size_t limit);
 
   size_t commit(size_t size, size_t limit);
 
@@ -258,13 +258,13 @@ private:
   void satisfy_stalled();
 
   bool is_multi_partition_enabled() const;
-  bool is_multi_partition_allowed(const ZPageAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit) const;
+  bool is_multi_partition_allowed(const ZPageAllocation* allocation, ZPageAllocationAttempt attempt, size_t total_limit) const;
 
   const ZPartition& partition_from_partition_id(uint32_t partition_id) const;
   ZPartition&       partition_from_partition_id(uint32_t partition_id);
   ZPartition&       partition_from_vmem(const ZVirtualMemory& vmem);
 
-  size_t sum_available(ZPageAllocationAttempt attempt, size_t limit) const;
+  size_t sum_available(ZPageAllocationAttempt attempt, size_t total_limit) const;
 
   void increase_used(size_t size);
   void decrease_used(size_t size);

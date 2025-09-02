@@ -117,6 +117,11 @@ public class TestUncommit {
     }
 
     public static void main(String[] args) throws Exception {
-        /* Disabled */
+        for (int i = 0; i < 2; i++) {
+            log("Iteration " + i);
+            test(smallObjectSize);
+            test(mediumObjectSize);
+            test(largeObjectSize);
+        }
     }
 }

@@ -1834,8 +1834,6 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   ZPageAllocation allocation(type, size, flags, age, preferred_partition);
 
-  const size_t heuristic_max = heuristic_max_capacity();
-
   // Allocate the page
   ZPage* const page = alloc_page_inner(&allocation, ZPageAllocationAttempt::initial);
   if (page == nullptr) {
@@ -1855,7 +1853,6 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   const ZPageAllocationStats stats = allocation.stats();
   const int num_harvested_vmems = stats._num_harvested_vmems;
   const size_t harvested = stats._total_harvested;
-  const size_t committed = stats._total_committed_capacity;
 
   if (harvested > 0) {
     ZStatInc(ZCounterMappedCacheHarvest, harvested);
@@ -2435,9 +2432,6 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
       continue;
     }
 
-    // Remove the harvested part
-    const ZVirtualMemory non_harvest_vmem = partial_vmem.last_part(allocation->harvested());
-
     ZArray<ZVirtualMemory>* const partial_vmems = allocation->partial_vmems();
 
     // Keep track of the start index
@@ -2660,7 +2654,6 @@ void ZPageAllocator::satisfy_stalled() {
       return;
     }
 
-    const size_t limit = _static_max_capacity;
     if (!claim_capacity(allocation, ZPageAllocationAttempt::stall)) {
       // Allocation could not be satisfied, give up
       return;

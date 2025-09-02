@@ -165,6 +165,24 @@ void ZArguments::select_max_gc_threads() {
 void ZArguments::initialize() {
   GCArguments::initialize();
 
+  // TODO: We need a pre set_heap_size check and a post set_heap_size.
+  //       When we unify Arguments::set_heap_size and GCArguments::set_heap_size
+  //       we can move this type of logic to the begining and the end of that
+  //       function.
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // When automatic heap sizing is disabled, don't try to prepare the default
+    // heap size in the automatic heap sizing friendly way.
+
+    if (Atomic::load(&ZGCPressure) != 0.0) {
+      if (FLAG_IS_CMDLINE(ZGCPressure)) {
+        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
+                        "Adaptive heap sizing is not available.");
+      }
+      // If the heap size is fixed, set ZGCPressure to 0.0
+      FLAG_SET_ERGO(ZGCPressure, 0.0);
+    }
+  }
+
   // NUMA settings
   if (FLAG_IS_DEFAULT(ZFakeNUMA)) {
     // Enable NUMA by default

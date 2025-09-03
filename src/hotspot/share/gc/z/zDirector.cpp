@@ -399,7 +399,6 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
   const size_t used = stats._heap._used;
   const size_t free_including_headroom = max_capacity - MIN2(max_capacity, used);
   const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, max_capacity);
 
   auto print_function = [&](size_t free, double free_percent) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: %zuMB(%.1f%%)",

@@ -55,7 +55,6 @@ bool ZAdaptiveHeap::can_adapt() {
 
 void ZAdaptiveHeap::initialize(bool explicit_max_capacity) {
   double process_time_now = os::elapsed_process_cpu_time();
-  double system_time_now = os::elapsed_system_cpu_time();
   double time_now = os::elapsedTime();
   _young_data._last_system_time = process_time_now;
   _old_data._last_system_time = process_time_now;
@@ -262,7 +261,6 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
     return metrics->_heuristic_max_capacity;
   }
 
-  ZStatWorkersStats worker_stats = ZGeneration::generation(generation)->stat_workers()->stats();
   ZStatCycleStats cycle_stats = ZGeneration::generation(generation)->stat_cycle()->stats();
 
   const bool is_young = generation == ZGenerationId::young;
@@ -306,9 +304,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
 
   const double gc_time = cycle_stats._last_total_vtime + (is_young ? 0.0 : _accumulated_young_gc_time);
 
-  const double gc_cpu_load = clamp((gc_time / time_since_last) / ncpus, 0.0, 1.0);
   const double process_cpu_load = clamp((process_time / time_since_last) / ncpus, 0.0, 1.0);
-  const double system_cpu_load = clamp((system_time / time_since_last) / ncpus, 0.0, 1.0);
 
   generation_data._process_times.add(process_time);
   generation_data._system_times.add(system_time);
@@ -342,7 +338,6 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
   // Account for the overhead of old generation collections when evaluating
   // the heap efficiency for young generation collections.
   const double avg_cpu_overhead_conservative = avg_cpu_overhead / (is_young ? Atomic::load(&_young_to_old_gc_time) : 1.0);
-  const double current_cpu_overhead_conservative = current_cpu_overhead / (is_young ? Atomic::load(&_young_to_old_gc_time) : 1.0);
 
   // When GC pressure is 10, the implication is that we want 25% of the
   // process CPU to be spent on doing GC when the process uses 100% of the

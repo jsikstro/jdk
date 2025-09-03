@@ -2947,28 +2947,35 @@ void os::pd_disclaim_memory(char *addr, size_t bytes) {
 }
 
 size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
-  const size_t len = pointer_delta(last, first, sizeof(char)) + page_size;
-  // Use madvise to pretouch on Linux when THP is used, and fallback to the
-  // common method if unsupported. THP can form right after madvise rather than
-  // being assembled later.
-  if (HugePages::thp_mode() == THPMode::always || UseTransparentHugePages) {
-    int err = 0;
-    if (UseMadvPopulateWrite &&
-        ::madvise(first, len, MADV_POPULATE_WRITE) == -1) {
-      err = errno;
-    }
-    if (!UseMadvPopulateWrite || err == EINVAL) { // Not to use or not supported
-      // When using THP we need to always pre-touch using small pages as the
-      // OS will initially always use small pages.
-      return os::vm_page_size();
-    } else if (err != 0) {
-      log_info(gc, os)("::madvise(" PTR_FORMAT ", %zu, %d) failed; "
-                       "error='%s' (errno=%d)", p2i(first), len,
-                       MADV_POPULATE_WRITE, os::strerror(err), err);
-    }
-    return 0;
+  // If we aren't using THP, fall back to the requested page size.
+  if (HugePages::thp_mode() != THPMode::always && !UseTransparentHugePages) {
+    return page_size;
   }
-  return page_size;
+
+  if (!UseMadvPopulateWrite) {
+    // When using THP we need to always pre-touch using small pages as the
+    // OS will initially always use small pages.
+    return os::vm_page_size();
+  }
+
+  // Use madvise to pretouch for THP, which can form right after madvise rather
+  // than being assembled later.
+  const size_t len = pointer_delta(last, first, sizeof(char)) + page_size;
+  if (::madvise(first, len, MADV_POPULATE_WRITE) == -1) {
+    if (errno == EINVAL) {
+      // Kernel might not support MADV_POPULATE_WRITE, len is not page-aligned
+      // or mapping might not support page-fault population. Fall back to using
+      // small pages.
+      return os::vm_page_size();
+    }
+
+    // Log unexpected error
+    log_info(gc, os)("::madvise(" PTR_FORMAT ", %zu, %d) failed; "
+                     "error='%s' (errno=%d)", p2i(first), len,
+                     MADV_POPULATE_WRITE, os::strerror(err), err);
+  }
+
+  return 0;
 }
 
 void os::numa_make_global(char *addr, size_t bytes) {

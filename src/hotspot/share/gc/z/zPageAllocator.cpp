@@ -1142,14 +1142,18 @@ void ZPartition::map_virtual_from_multi_partition(const ZVirtualMemory& vmem) {
   manager.map(vmem, _numa_id);
 
   // Register a heating request for this mapping
-  _mem_worker.register_heating_request(vmem);
+  if (ZAdaptiveHeap::can_adapt()) {
+    _mem_worker.register_heating_request(vmem);
+  }
 }
 
 void ZPartition::unmap_virtual_from_multi_partition(const ZVirtualMemory& vmem) {
   verify_virtual_memory_multi_partition_association(vmem);
 
   // Remove any heating request before unmapping
-  _mem_worker.remove_heating_request(vmem);
+  if (ZAdaptiveHeap::can_adapt()) {
+    _mem_worker.remove_heating_request(vmem);
+  }
 
   ZPhysicalMemoryManager& manager = physical_memory_manager();
 

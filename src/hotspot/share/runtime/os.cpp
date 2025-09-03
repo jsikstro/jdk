@@ -2340,15 +2340,20 @@ void os::pretouch_memory(void* start, void* end, size_t page_size) {
     void* first = align_down(start, page_size);
     void* last = align_down(static_cast<char*>(end) - 1, page_size);
     assert(first <= last, "invariant");
-    const size_t pd_page_size = pd_pretouch_memory(first, last, page_size);
-    if (pd_page_size > 0) {
-      // Iterate from first page through last (inclusive), being careful to
-      // avoid overflow if the last page abuts the end of the address range.
-      last = align_down(static_cast<char*>(end) - 1, pd_page_size);
-      for (char* cur = static_cast<char*>(first); /* break */; cur += pd_page_size) {
-        Atomic::add(reinterpret_cast<int*>(cur), 0, memory_order_relaxed);
-        if (cur >= last) break;
-      }
+
+    if (pd_pretouch_memory(first, last)) {
+      // Memory was been pretouched successfully, we're done.
+      return;
+    }
+
+    const size_t pd_page_size = pd_pretouch_page_size(page_size);
+
+    // Iterate from first page through last (inclusive), being careful to
+    // avoid overflow if the last page abuts the end of the address range.
+    last = align_down(static_cast<char*>(end) - 1, pd_page_size);
+    for (char* cur = static_cast<char*>(first); /* break */; cur += pd_page_size) {
+      Atomic::add(reinterpret_cast<int*>(cur), 0, memory_order_relaxed);
+      if (cur >= last) break;
     }
   }
 }

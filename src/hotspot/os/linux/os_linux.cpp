@@ -2946,36 +2946,43 @@ void os::pd_disclaim_memory(char *addr, size_t bytes) {
    ::madvise(addr, bytes, MADV_DONTNEED);
 }
 
-size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
-  // If we aren't using THP, fall back to the requested page size.
-  if (HugePages::thp_mode() != THPMode::always && !UseTransparentHugePages) {
-    return page_size;
+bool os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
+  // We only use madvise to pretouch for THP, which can form right after madvise rather
+  // than being assembled later. If THP is not enabled, we fall back to common pretouching.
+  if (!thp_requested_and_always_enabled()) {
+    return false;
   }
 
   if (!UseMadvPopulateWrite) {
+    return false;
+  }
+
+  const size_t len = pointer_delta(last, first, sizeof(char)) + page_size;
+  if (::madvise(first, len, MADV_POPULATE_WRITE) == -1) {
+    // Getting EINVAL might mean that MADV_POPULATE_WRITE is not supported,
+    // len is not page-aligned or mapping does not support page-fault population.
+    // Other errors are unexpected, so log them.
+    if (errno != EINVAL) {
+      log_info(gc, os)("::madvise(" PTR_FORMAT ", %zu, %d) failed; "
+                       "error='%s' (errno=%d)", p2i(first), len,
+                       MADV_POPULATE_WRITE, os::strerror(err), err);
+    }
+
+    return false;
+  }
+
+  // Memory was successfully pretouched.
+  return true;
+}
+
+size_t os::pd_pretouch_page_size(size_t page_size) {
+  if (thp_requested_and_always_enabled()) {
     // When using THP we need to always pre-touch using small pages as the
     // OS will initially always use small pages.
     return os::vm_page_size();
   }
 
-  // Use madvise to pretouch for THP, which can form right after madvise rather
-  // than being assembled later.
-  const size_t len = pointer_delta(last, first, sizeof(char)) + page_size;
-  if (::madvise(first, len, MADV_POPULATE_WRITE) == -1) {
-    if (errno == EINVAL) {
-      // Kernel might not support MADV_POPULATE_WRITE, len is not page-aligned
-      // or mapping might not support page-fault population. Fall back to using
-      // small pages for the same reason as above.
-      return os::vm_page_size();
-    }
-
-    // Log unexpected error
-    log_info(gc, os)("::madvise(" PTR_FORMAT ", %zu, %d) failed; "
-                     "error='%s' (errno=%d)", p2i(first), len,
-                     MADV_POPULATE_WRITE, os::strerror(err), err);
-  }
-
-  return 0;
+  return page_size;
 }
 
 void os::numa_make_global(char *addr, size_t bytes) {
@@ -3935,6 +3942,10 @@ void os::Linux::large_page_init() {
 
 bool os::Linux::thp_requested() {
   return _thp_requested;
+}
+
+bool os::Linux::thp_requested_and_always_enabled() {
+  return _thp_requested && HugePages::thp_mode() == THPMode::always;
 }
 
 bool os::Linux::should_madvise_anonymous_thps() {

@@ -236,9 +236,12 @@ class os: AllStatic {
   static void   pd_disclaim_memory(char *addr, size_t bytes);
   static void   pd_realign_memory(char *addr, size_t bytes, size_t alignment_hint);
 
-  // Returns 0 if pretouch is done via platform dependent method, or otherwise
-  // returns page_size that should be used for the common method.
-  static size_t pd_pretouch_memory(void* first, void* last, size_t page_size);
+  // Attempts to pretouch memory in a platform dependent way, returns true if
+  // memory has been pretouched, false if it wasn't.
+  static bool pd_pretouch_memory(void* first, void* last);
+
+  // Returns the page size that should be used for the common pretouch method.
+  static size_t pd_pretouch_page_size(size_t page_size);
 
   static char*  pd_reserve_memory_special(size_t size, size_t alignment, size_t page_size,
 

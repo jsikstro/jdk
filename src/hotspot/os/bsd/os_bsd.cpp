@@ -1589,7 +1589,11 @@ void os::pd_disclaim_memory(char *addr, size_t bytes) {
   ::madvise(addr, bytes, MADV_DONTNEED);
 }
 
-size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
+bool os::pd_pretouch_memory(void* first, void* last) {
+  return false;
+}
+
+size_t os::pd_pretouch_page_size(size_t page_size) {
   return page_size;
 }
 

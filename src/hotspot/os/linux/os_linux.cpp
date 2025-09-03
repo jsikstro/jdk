@@ -2965,7 +2965,7 @@ size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
     if (errno == EINVAL) {
       // Kernel might not support MADV_POPULATE_WRITE, len is not page-aligned
       // or mapping might not support page-fault population. Fall back to using
-      // small pages.
+      // small pages for the same reason as above.
       return os::vm_page_size();
     }
 

@@ -178,8 +178,7 @@ void ZGeneration::flip_age_pages(const ZRelocationSetSelector* selector) {
 
 static double fragmentation_limit(ZGenerationId generation) {
   double min_fragmentation = 0.0;
-  if (!ZAdaptiveHeap::explicit_max_capacity() &&
-      ZHeap::heap()->is_alloc_stalling()) {
+  if (ZAdaptiveHeap::can_adapt() && ZHeap::heap()->is_alloc_stalling()) {
     // It can be dangerous to defragment too much when the critical
     // reserve of machine memory is used.  When
     // stalling starts, there should be very limited amounts of

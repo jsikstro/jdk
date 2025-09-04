@@ -83,7 +83,7 @@ static double concerning_threshold(const ZMemoryPressureMetrics& metrics) {
   // The concerning threshold is after which memory utilization we start trying
   // harder to keep the memory down. There are multiple reasons for letting the GC
   // run hotter:
-  // 1) We want to maintain some headeroom on the machine so that we can deal with
+  // 1) We want to maintain some headroom on the machine so that we can deal with
   //    spikes without getting allocation stalls.
   // 2) It's good to let the OS keep some file system cache memory around
   // 3) On systems that compress used memory, using compressed memory is not a
@@ -184,7 +184,7 @@ double ZAdaptiveHeap::gc_pressure(double unscaled_gc_pressure, double process_cp
   // used bytes belong to this process compared to how many of the used system
   // CPU ticks belong to this process. For a single application deployment this
   // has effectively no effect, while for a multi process deployment, processes
-  // that are unproportionally memory bloated compared to other processes will
+  // that are unproportionately memory bloated compared to other processes will
   // rebalance themselves better to provide more memory for other processes.
   const double process_cpu_pressure = 1.0 / (1.0 + clamp(process_cpu_usage_ratio - process_memory_usage_ratio, -0.1, 1.0));
 
@@ -200,7 +200,7 @@ double ZAdaptiveHeap::gc_pressure(double unscaled_gc_pressure, double process_cp
   const double system_cpu_pressure = 1.0 / (1.0 + clamp(responsive_system_cpu_usage - system_memory_usage, -0.1, 1.0));
 
   // Balance the forces of resource share imbalance across processes with the
-  // forces of system lvel resource usage imbalance.
+  // forces of system level resource usage imbalance.
   const double cpu_pressure = process_cpu_pressure * system_cpu_pressure;
 
   // The combined forces of memory vs CPU.
@@ -449,7 +449,7 @@ double ZAdaptiveHeap::uncommit_urgency(size_t used_memory, size_t total_memory) 
     return 0.0;
   }
 
-  // We use a policy where the uncommit delay drops off farily quickly
+  // We use a policy where the uncommit delay drops off fairly quickly
   // as the memory pressure gets "high" to let uncommitting react before
   // the next GC, but still without being brutal.
   // When the memory availability becomes critical, more brutal uncommitting

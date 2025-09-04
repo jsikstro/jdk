@@ -75,9 +75,6 @@ private:
   bool throttle_uncommit(Ticks start);
   size_t uncommit(size_t to_uncommit);
 
-  void assert_enqueued_size();
-  void assert_not_tracked(const ZVirtualMemory& vmem);
-  void assert_not_tracked(zoffset start, size_t size);
   bool should_heat();
   bool has_heating_request();
   void remove_heating_request_range(const ZVirtualMemory& vmem);

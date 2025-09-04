@@ -672,10 +672,6 @@ size_t ZPartition::capacity() const {
   return Atomic::load(&_capacity);
 }
 
-size_t ZPartition::committed() const {
-  return Atomic::load(&_committed);
-}
-
 void ZPartition::increase_committed(size_t increment, bool commit_failed) {
   _committed += increment;
 
@@ -716,7 +712,7 @@ size_t ZPartition::available(size_t limit) const {
   assert(_capacity == _used + _claimed + _cache.size(), "Should be consistent"
           " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
           _capacity, _used, _claimed, _cache.size());
-  assert(limit <= _static_max_capacity, "Invalid limit for partition ");
+  assert(limit <= _static_max_capacity, "Invalid limit for partition");
   const size_t unavailable = _used + _claimed;
 
   if (limit < unavailable) {

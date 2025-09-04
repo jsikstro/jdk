@@ -96,12 +96,10 @@ public:
              size_t initial_capacity,
              size_t static_max_capacity);
 
-  void set_current_max_capacity();
   size_t dynamic_max_capacity() const;
   size_t current_max_capacity() const;
   size_t static_max_capacity() const;
   size_t capacity() const;
-  size_t committed() const;
 
   void increase_committed(size_t increment, bool commit_failed);
   void decrease_committed(size_t decrement);
@@ -285,9 +283,7 @@ public:
   bool is_initialized() const;
 
   bool prime_cache(ZWorkers* workers, size_t size);
-  void heat_memory(zoffset start, size_t size) const;
 
-  size_t initial_capacity() const;
   size_t min_capacity() const;
   size_t static_max_capacity() const;
   size_t dynamic_max_capacity() const;

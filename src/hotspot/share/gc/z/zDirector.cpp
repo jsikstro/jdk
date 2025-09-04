@@ -395,11 +395,6 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
   // memory is still slowly but surely heading towards zero. In this situation,
   // we start a GC cycle to avoid a potential allocation stall later.
 
-  const size_t max_capacity = stats._heap._current_max_capacity;
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = max_capacity - MIN2(max_capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-
   auto print_function = [&](size_t free, double free_percent) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: %zuMB(%.1f%%)",
                             free / M, free_percent);

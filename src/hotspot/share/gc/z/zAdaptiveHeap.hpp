@@ -25,8 +25,8 @@
 #define SHARE_GC_Z_ZADAPTIVEHEAP_HPP
 
 #include "gc/z/zGenerationId.hpp"
-#include "memory/allocation.hpp"
 #include "gc/z/zStat.hpp"
+#include "memory/allocation.hpp"
 #include "utilities/numberSeq.hpp"
 
 struct ZHeapResizeMetrics {

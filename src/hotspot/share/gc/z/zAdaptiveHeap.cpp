@@ -29,9 +29,9 @@
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "logging/log.hpp"
-#include "runtime/os.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/globals_extension.hpp"
+#include "runtime/os.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 

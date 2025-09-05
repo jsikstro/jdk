@@ -22,8 +22,8 @@
  */
 
 #include "gc/shared/gc_globals.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAbort.inline.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zCPU.inline.hpp"
 #include "gc/z/zDirector.hpp"

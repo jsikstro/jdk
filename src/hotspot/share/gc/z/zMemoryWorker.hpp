@@ -32,8 +32,8 @@
 #include "gc/z/zThread.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "memory/allocation.hpp"
-#include "utilities/ticks.hpp"
 #include "utilities/rbTree.hpp"
+#include "utilities/ticks.hpp"
 
 class ZPartition;
 

@@ -22,8 +22,8 @@
  */
 
 #include "gc/shared/gcArguments.hpp"
-#include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zArguments.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zGlobals.hpp"

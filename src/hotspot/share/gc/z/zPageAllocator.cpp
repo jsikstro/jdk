@@ -21,8 +21,8 @@
  * questions.
  */
 
-#include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/gc_globals.hpp"
+#include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAddress.hpp"

@@ -1704,10 +1704,10 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
 
 void ZPageAllocator::adjust_capacity(size_t used_soon) {
   const size_t total_memory = os::physical_memory();
-    size_t used_memory = 0;
-    if (!os::used_memory(used_memory)) {
-      // TODO: Handle os::used_memory being unavailable.
-    }
+  size_t used_memory = 0;
+  if (!os::used_memory(used_memory)) {
+    // TODO: Handle os::used_memory being unavailable.
+  }
   const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency(used_memory, total_memory);
 
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();

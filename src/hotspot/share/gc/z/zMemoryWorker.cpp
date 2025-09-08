@@ -369,19 +369,25 @@ void ZMemoryWorker::register_heating_request(const ZVirtualMemory& vmem) {
 ZVirtualMemory ZMemoryWorker::pop_heating_request() {
   assert(has_heating_request(), "precondition");
 
-  ZHeatingRequestNode* const node = _heating_requests.leftmost();
-
-  ZVirtualMemory vmem(node->key(), node->val());
-  _heating_requests.remove(node);
-
   const size_t max_heating = 16 * ZGranuleSize;
 
-  if (vmem.size() > max_heating) {
-    // Reinsert remaining part if there is a lot of work to do
-    const ZVirtualMemory remaining = vmem.shrink_from_back(vmem.size() - max_heating);
-    ZHeatingRequestNode* const new_node = _heating_requests.allocate_node(remaining.start(), remaining.size());
-    _heating_requests.insert(remaining.start(), new_node);
+  ZHeatingRequestNode* const node = _heating_requests.leftmost();
+  const size_t size = node->val();
+
+  // If the node is small enough, we remove it entirely from the tree. Otherwise,
+  // we update the node's size in-place without removing and inserting it.
+
+  if (size <= max_heating) {
+    const ZVirtualMemory vmem(node->key(), size);
+    _heating_requests.remove(node);
+    return vmem;
   }
+
+  const size_t size_remainder = size - max_heating;
+  const ZVirtualMemory vmem(node->key() + size_remainder, max_heating);
+
+  // Update the value of the node to the new size.
+  node->set_val(size_remainder);
 
   return vmem;
 }

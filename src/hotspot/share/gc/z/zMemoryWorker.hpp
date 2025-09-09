@@ -87,6 +87,8 @@ protected:
   virtual void terminate();
 
 public:
+  static bool is_enabled();
+
   ZMemoryWorker(uint32_t id, ZPartition* partition);
 
   void heap_resized(size_t capacity, size_t heuristic_max_capacity);

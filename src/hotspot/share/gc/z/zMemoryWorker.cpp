@@ -49,6 +49,10 @@ int ZHeatingRequestTreeComparator::cmp(zoffset first, zoffset second) {
   return 0;
 }
 
+bool ZMemoryWorker::is_enabled() {
+  return ZAdaptiveHeap::can_adapt();
+}
+
 ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
   : _id(id),
     _partition(partition),
@@ -57,7 +61,7 @@ ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
     _target_capacity(0),
     _stop(false),
     _currently_heating() {
-  if (!ZAdaptiveHeap::can_adapt()) {
+  if (!is_enabled()) {
     // Disabled, do not start.
     _stop = true;
     return;

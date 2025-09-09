@@ -1414,11 +1414,11 @@ void ZPartition::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
 }
 
 void ZPartition::threads_do(ThreadClosure* tc) const {
-  if (ZUncommit && !ZAdaptiveHeap::can_adapt()) {
-    // ZUncommitter is not created
+  if (ZUncommitter::is_enabled()) {
     tc->do_thread(const_cast<ZUncommitter*>(&_uncommitter));
   }
-  if (ZAdaptiveHeap::can_adapt()) {
+
+  if (ZMemoryWorker::is_enabled()) {
     tc->do_thread(const_cast<ZMemoryWorker*>(&_mem_worker));
   }
 }

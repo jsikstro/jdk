@@ -3197,12 +3197,6 @@ bool os::Linux::libnuma_init() {
         _numa_original_affinity_mask = _numa_allocate_cpumask();
         _numa_sched_getaffinity(0, _numa_original_affinity_mask);
 
-        for (int i = 0; i < os::processor_count(); i++) {
-          if (_numa_bitmask_isbitset(_numa_original_affinity_mask, i)) {
-            log_info(numa)("B %d", i);
-          }
-        }
-
         // Create a node -> CPUs mapping
         _numa_affinity_masks = new (mtInternal) GrowableArray<struct bitmask*>(0, mtInternal);
         build_numa_affinity_masks();

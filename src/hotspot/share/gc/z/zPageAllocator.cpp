@@ -1106,7 +1106,7 @@ void ZPartition::map_virtual(const ZVirtualMemory& vmem, bool heat_memory) {
   // Map virtual memory to physical memory
   manager.map(vmem, _numa_id);
 
-  if (heat_memory && ZAdaptiveHeap::can_adapt()) {
+  if (heat_memory && ZMemoryHeating) {
     // Register a heating request for this mapping
     _mem_worker.register_heating_request(vmem);
   }
@@ -1115,7 +1115,7 @@ void ZPartition::map_virtual(const ZVirtualMemory& vmem, bool heat_memory) {
 void ZPartition::unmap_virtual(const ZVirtualMemory& vmem) {
   verify_virtual_memory_association(vmem);
 
-  if (ZAdaptiveHeap::can_adapt()) {
+  if (ZMemoryHeating) {
     // Remove any heating request before unmapping
     _mem_worker.remove_heating_request(vmem);
   }
@@ -1138,7 +1138,7 @@ void ZPartition::map_virtual_from_multi_partition(const ZVirtualMemory& vmem) {
   manager.map(vmem, _numa_id);
 
   // Register a heating request for this mapping
-  if (ZAdaptiveHeap::can_adapt()) {
+  if (ZMemoryHeating) {
     _mem_worker.register_heating_request(vmem);
   }
 }
@@ -1147,7 +1147,7 @@ void ZPartition::unmap_virtual_from_multi_partition(const ZVirtualMemory& vmem) 
   verify_virtual_memory_multi_partition_association(vmem);
 
   // Remove any heating request before unmapping
-  if (ZAdaptiveHeap::can_adapt()) {
+  if (ZMemoryHeating) {
     _mem_worker.remove_heating_request(vmem);
   }
 

@@ -50,7 +50,7 @@ int ZHeatingRequestTreeComparator::cmp(zoffset first, zoffset second) {
 }
 
 bool ZMemoryWorker::is_enabled() {
-  return ZAdaptiveHeap::can_adapt();
+  return ZAdaptiveHeap::can_adapt() || ZMemoryHeating;
 }
 
 ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
@@ -148,13 +148,6 @@ bool ZMemoryWorker::has_heating_request() {
 
 bool ZMemoryWorker::peek() {
   for (;;) {
-    const size_t capacity = _partition->capacity();
-    const size_t curr_max_capacity = _partition->current_max_capacity();
-    const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
-    const size_t maybe_commit = commit_granule(capacity, target_capacity);
-    const size_t maybe_uncommit = uncommit_granule();
-    const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
-
     ZLocker<ZConditionLock> locker(&_lock);
     if (_stop) {
       return false;
@@ -166,17 +159,26 @@ bool ZMemoryWorker::peek() {
       continue;
     }
 
-    if (should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
-      // At least one granule to commit
-      return true;
+    if (ZAdaptiveHeap::can_adapt()) {
+      const size_t capacity = _partition->capacity();
+      const size_t curr_max_capacity = _partition->current_max_capacity();
+      const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
+      const size_t maybe_commit = commit_granule(capacity, target_capacity);
+      const size_t maybe_uncommit = uncommit_granule();
+      const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
+
+      if (should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
+        // At least one granule to commit
+        return true;
+      }
+
+      if (should_uncommit(maybe_uncommit, capacity, target_capacity)) {
+        // At least one granule to uncommit
+        return true;
+      }
     }
 
-    if (should_uncommit(maybe_uncommit, capacity, target_capacity)) {
-      // At least one granule to uncommit
-      return true;
-    }
-
-    if (has_heating_request()) {
+    if (ZMemoryHeating && has_heating_request()) {
       return true;
     }
 
@@ -331,7 +333,7 @@ void ZMemoryWorker::remove_heating_request_range(const ZVirtualMemory& vmem) {
 }
 
 void ZMemoryWorker::register_heating_request(const ZVirtualMemory& vmem) {
-  precond(ZAdaptiveHeap::can_adapt());
+  precond(ZMemoryHeating);
 
   ZLocker<ZConditionLock> locker(&_lock);
   if (_stop) {
@@ -397,7 +399,7 @@ ZVirtualMemory ZMemoryWorker::pop_heating_request() {
 }
 
 void ZMemoryWorker::remove_heating_request(const ZVirtualMemory& vmem) {
-  precond(ZAdaptiveHeap::can_adapt());
+  precond(ZMemoryHeating);
 
   ZLocker<ZConditionLock> locker(&_lock);
 
@@ -491,38 +493,41 @@ void ZMemoryWorker::run_thread() {
     size_t last_target_capacity = 0;
 
     for (;;) {
-      const size_t capacity = _partition->capacity();
-      const size_t curr_max_capacity = _partition->current_max_capacity();
-      const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
-      const size_t maybe_commit = commit_granule(capacity, target_capacity);
-      const size_t maybe_uncommit = uncommit_granule();
-      const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
 
       if (is_stop_requested()) {
         return;
       }
 
-      if (last_target_capacity != 0 && last_target_capacity != target_capacity) {
-        // Printouts look better when flushing across target capacity changes
-        break;
-      }
+      if (ZAdaptiveHeap::can_adapt()) {
+        const size_t capacity = _partition->capacity();
+        const size_t curr_max_capacity = _partition->current_max_capacity();
+        const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
+        const size_t maybe_commit = commit_granule(capacity, target_capacity);
+        const size_t maybe_uncommit = uncommit_granule();
+        const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
 
-      last_target_capacity = target_capacity;
+        if (last_target_capacity != 0 && last_target_capacity != target_capacity) {
+          // Printouts look better when flushing across target capacity changes
+          break;
+        }
 
-      // Prioritize committing memory if needed
-      if (uncommitted == 0 && should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
-        committed += _partition->commit(maybe_commit, target_capacity);
-        continue;
-      }
+        last_target_capacity = target_capacity;
 
-      // The secondary priority is uncommitting memory if needed
-      if (committed == 0 && should_uncommit(maybe_uncommit, capacity, target_capacity)) {
-        uncommitted += uncommit(maybe_uncommit);
-        continue;
+        // Prioritize committing memory if needed
+        if (uncommitted == 0 && should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
+          committed += _partition->commit(maybe_commit, target_capacity);
+          continue;
+        }
+
+        // The secondary priority is uncommitting memory if needed
+        if (committed == 0 && should_uncommit(maybe_uncommit, capacity, target_capacity)) {
+          uncommitted += uncommit(maybe_uncommit);
+          continue;
+        }
       }
 
       // Last priority is to heat pages to optimize access speed
-      if (should_heat()) {
+      if (ZMemoryHeating && should_heat()) {
         heated += process_heating_request();
         continue;
       }

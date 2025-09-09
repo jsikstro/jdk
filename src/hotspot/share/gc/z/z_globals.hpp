@@ -119,6 +119,9 @@
           "Young generation tenuring threshold, -1 for dynamic computation")\
           range(-1, static_cast<int>(ZPageAgeCount) - 1)                    \
                                                                             \
+  product(bool, ZMemoryHeating, true, DIAGNOSTIC,                           \
+          "Use concurent memory worker(s) to optimize committed memory")    \
+                                                                            \
   develop(bool, ZVerifyOops, false,                                         \
           "Verify accessed oops")                                           \
                                                                             \

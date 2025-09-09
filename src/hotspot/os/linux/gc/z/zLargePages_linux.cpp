@@ -48,7 +48,7 @@ static bool madv_collapse_available() {
 }
 
 void ZLargePages::pd_initialize() {
-  bool can_collapse = madv_collapse_available();
+  bool can_collapse = ZMemoryHeating && madv_collapse_available();
 
   if (os::Linux::thp_requested()) {
     if (can_collapse) {
@@ -61,13 +61,13 @@ void ZLargePages::pd_initialize() {
     return;
   }
 
-  if (FLAG_IS_DEFAULT(UseTransparentHugePages) && can_collapse) {
-    _state = Collapse;
+  if (UseLargePages) {
+    _state = Explicit;
     return;
   }
 
-  if (UseLargePages) {
-    _state = Explicit;
+  if (FLAG_IS_DEFAULT(UseTransparentHugePages) && can_collapse) {
+    _state = Collapse;
     return;
   }
 

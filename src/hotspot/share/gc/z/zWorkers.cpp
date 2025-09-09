@@ -25,6 +25,7 @@
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zWorkers.hpp"
@@ -61,6 +62,15 @@ ZWorkers::ZWorkers(ZGenerationId id, ZStatWorkers* stats)
   _workers.set_active_workers(_workers.max_workers());
   if (_workers.active_workers() != _workers.max_workers()) {
     vm_exit_during_initialization("Failed to create ZWorkers");
+  }
+
+  if (UseNUMA) {
+    const uint32_t num_nodes = ZNUMA::count();
+    uint32_t current_numa_id = 0;
+    _workers.threads_do_f([&](WorkerThread* wt) {
+      os::numa_set_thread_affinity(wt, ZNUMA::numa_id_to_node(current_numa_id));
+      current_numa_id = (current_numa_id + 1) % num_nodes;
+    });
   }
 }
 

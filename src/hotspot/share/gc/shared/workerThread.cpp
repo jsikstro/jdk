@@ -141,13 +141,6 @@ void WorkerThreads::threads_do(ThreadClosure* tc) const {
   }
 }
 
-template <typename Function>
-void WorkerThreads::threads_do_f(Function function) const {
-  for (uint i = 0; i < _created_workers; i++) {
-    function(_workers[i]);
-  }
-}
-
 void WorkerThreads::set_indirect_states() {
 #ifdef ASSERT
   const bool is_suspendible = Thread::current()->is_suspendible_thread();

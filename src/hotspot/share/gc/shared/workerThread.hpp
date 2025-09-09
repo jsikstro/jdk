@@ -111,8 +111,13 @@ public:
   uint set_active_workers(uint num_workers);
 
   void threads_do(ThreadClosure* tc) const;
+
   template <typename Function>
-  void threads_do_f(Function function) const;
+  void threads_do_f(Function function) const {
+    for (uint i = 0; i < _created_workers; i++) {
+      function(_workers[i]);
+    }
+  }
 
   const char* name() const { return _name; }
 

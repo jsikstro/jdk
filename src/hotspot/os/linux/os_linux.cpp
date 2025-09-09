@@ -2990,6 +2990,10 @@ size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
   return page_size;
 }
 
+bool os::numa_set_thread_affinity(Thread* thread, int node) {
+  return Linux::numa_set_thread_affinity(thread->osthread()->thread_id(), node);
+}
+
 void os::numa_make_global(char *addr, size_t bytes) {
   Linux::numa_interleave_memory(addr, bytes);
 }
@@ -3191,6 +3195,12 @@ bool os::Linux::libnuma_init() {
                                             libnuma_dlsym(handle, "numa_set_preferred")));
       set_numa_get_run_node_mask(CAST_TO_FN_PTR(numa_get_run_node_mask_func_t,
                                                 libnuma_v2_dlsym(handle, "numa_get_run_node_mask")));
+      set_numa_sched_getaffinity(CAST_TO_FN_PTR(numa_sched_getaffinity_func_t,
+                                                libnuma_v2_dlsym(handle, "numa_sched_getaffinity")));
+      set_numa_sched_setaffinity(CAST_TO_FN_PTR(numa_sched_setaffinity_func_t,
+                                                libnuma_v2_dlsym(handle, "numa_sched_setaffinity")));
+      set_numa_allocate_cpumask(CAST_TO_FN_PTR(numa_allocate_cpumask_func_t,
+                                               libnuma_v2_dlsym(handle, "numa_allocate_cpumask")));
 
       if (numa_available() != -1) {
         set_numa_all_nodes((unsigned long*)libnuma_dlsym(handle, "numa_all_nodes"));
@@ -3205,6 +3215,17 @@ bool os::Linux::libnuma_init() {
         // Create a cpu -> node mapping
         _cpu_to_node = new (mtInternal) GrowableArray<int>(0, mtInternal);
         rebuild_cpu_to_node_map();
+
+        // Store the original affinity mask of the thread when the VM started
+        _numa_original_affinity_mask = _numa_allocate_cpumask();
+        if (_numa_sched_getaffinity(0, _numa_original_affinity_mask) != 0) {
+          //return false;
+        }
+
+        // Create a node -> CPUs mapping
+        _numa_affinity_masks = new (mtInternal) GrowableArray<struct bitmask*>(0, mtInternal);
+        rebuild_numa_affinity_masks();
+
         return true;
       }
     }
@@ -3238,6 +3259,32 @@ size_t os::Linux::default_guard_size(os::ThreadType thr_type) {
   // guard pages, only enable glibc guard page for non-Java threads.
   // (Remember: compiler thread is a Java thread, too!)
   return ((thr_type == java_thread || thr_type == compiler_thread) ? 0 : os::vm_page_size());
+}
+
+void os::Linux::rebuild_numa_affinity_masks() {
+  // We only build the affinity masks if running libnuma v2
+  if (_numa_node_to_cpus_v2 == nullptr) {
+    return;
+  }
+
+  // Normally the process is allowed to run on all CPUs, but if the user has
+  // limited the CPUs using "numactl -C" for example, not all CPUs should be
+  // present in the affinity masks that are created below.
+  struct bitmask* allowed_cpus = _numa_get_run_node_mask();
+
+  // Used to store the intersection of logical AND on the allowed_cpus bitmask
+  // and the node_to_cpus bitmask.
+  struct bitmask* intersection = _numa_allocate_cpumask();
+
+  const int num_nodes = get_existing_num_nodes();
+  for (int i = 0; i < num_nodes; i++) {
+    struct bitmask* mask = _numa_allocate_cpumask();
+    _numa_node_to_cpus_v2(i, mask);
+
+    // TODO: We need to AND the mask with the configured mask by the user.
+
+    _numa_affinity_masks->push(mask);
+  }
 }
 
 void os::Linux::rebuild_nindex_to_node_map() {
@@ -3355,6 +3402,22 @@ int os::Linux::numa_node_to_cpus(int node, unsigned long *buffer, int bufferlen)
   return -1;
 }
 
+bool os::Linux::numa_set_thread_affinity(pid_t tid, int node) {
+  // We only set affinity if running libnuma v2 and the affinity masks are built.
+  if (_numa_sched_setaffinity == nullptr || _numa_affinity_masks->is_empty()) {
+    return false;
+  }
+
+  // If the node is -1, the affinity is reverted to the original affinity
+  // of the thread when the VM was started
+  if (node == -1) {
+    return _numa_sched_setaffinity(tid, _numa_original_affinity_mask) != 0;
+  }
+
+  // Normal case, set the affinity to one of the created affinity masks
+  return _numa_sched_setaffinity(tid, _numa_affinity_masks->at(node)) != 0;
+}
+
 int os::Linux::get_node_by_cpu(int cpu_id) {
   if (cpu_to_node() != nullptr && cpu_id >= 0 && cpu_id < cpu_to_node()->length()) {
     return cpu_to_node()->at(cpu_id);
@@ -3364,6 +3427,8 @@ int os::Linux::get_node_by_cpu(int cpu_id) {
 
 GrowableArray<int>* os::Linux::_cpu_to_node;
 GrowableArray<int>* os::Linux::_nindex_to_node;
+struct bitmask* os::Linux::_numa_original_affinity_mask;
+GrowableArray<struct bitmask*>* os::Linux::_numa_affinity_masks;
 os::Linux::sched_getcpu_func_t os::Linux::_sched_getcpu;
 os::Linux::numa_node_to_cpus_func_t os::Linux::_numa_node_to_cpus;
 os::Linux::numa_node_to_cpus_v2_func_t os::Linux::_numa_node_to_cpus_v2;
@@ -3380,6 +3445,9 @@ os::Linux::numa_distance_func_t os::Linux::_numa_distance;
 os::Linux::numa_get_membind_func_t os::Linux::_numa_get_membind;
 os::Linux::numa_get_interleave_mask_func_t os::Linux::_numa_get_interleave_mask;
 os::Linux::numa_get_run_node_mask_func_t os::Linux::_numa_get_run_node_mask;
+os::Linux::numa_sched_getaffinity_func_t os::Linux::_numa_sched_getaffinity;
+os::Linux::numa_sched_setaffinity_func_t os::Linux::_numa_sched_setaffinity;
+os::Linux::numa_allocate_cpumask_func_t os::Linux::_numa_allocate_cpumask;
 os::Linux::numa_move_pages_func_t os::Linux::_numa_move_pages;
 os::Linux::numa_set_preferred_func_t os::Linux::_numa_set_preferred;
 os::Linux::NumaAllocationPolicy os::Linux::_current_numa_policy;

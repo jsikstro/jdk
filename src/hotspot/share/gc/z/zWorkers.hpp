@@ -59,6 +59,11 @@ public:
 
   void threads_do(ThreadClosure* tc) const;
 
+  template <typename Function>
+  void threads_do_f(Function function) const {
+    _workers.threads_do_f(function);
+  }
+
   // Worker resizing
   ZLock* resizing_lock();
   void request_resize_workers(uint nworkers);

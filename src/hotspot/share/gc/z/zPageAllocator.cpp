@@ -1196,14 +1196,16 @@ ZVirtualMemory ZPartition::free_and_claim_virtual_from_low_exact_or_many(size_t 
   return manager.insert_and_remove_from_low_exact_or_many(size, _numa_id, vmems_in_out);
 }
 
-class ZPreTouchTask : public ZTask {
+class ZPreHeatTask : public ZTask {
 private:
+  ZPartition* const  _partition;
   volatile uintptr_t _current;
   const uintptr_t    _end;
 
 public:
-  ZPreTouchTask(zoffset start, zoffset_end end)
-    : ZTask("ZPreTouchTask"),
+  ZPreHeatTask(ZPartition* partition, zoffset start, zoffset_end end)
+    : ZTask("ZPreHeatTask"),
+      _partition(partition),
       _current(untype(start)),
       _end(untype(end)) {}
 
@@ -1221,8 +1223,8 @@ public:
       // At this point we know that we have a valid zoffset / zaddress.
       const zoffset offset = to_zoffset(claimed);
 
-      // Pre-touch the granule
-      pretouch_memory(offset, size);
+      // Pre-heat the granule
+      _partition->heat_memory(ZVirtualMemory(offset, size));
     }
   }
 };
@@ -1255,13 +1257,17 @@ bool ZPartition::prime(ZWorkers* workers, size_t size, size_t limit) {
       return false;
     }
 
-    map_virtual(vmem);
+    // We only send a request to heat the primed memory asynchronously if we
+    // shouldn't pre-touch (i.e., pre-heat) it synchronously during startup.
+    const bool async_heat = !AlwaysPreTouch;
+
+    map_virtual(vmem, async_heat);
 
     check_numa_mismatch(vmem, _numa_id);
 
-    if (AlwaysPreTouch) {
-      // Pre-touch memory
-      ZPreTouchTask task(vmem.start(), vmem.end());
+    if (!async_heat) {
+      // Pre-heat memory synchronously
+      ZPreHeatTask task(this, vmem.start(), vmem.end());
       workers->run_all(&task);
     }
 

@@ -59,7 +59,6 @@ class CgroupV2CpuController: public CgroupCpuController {
   public:
     CgroupV2CpuController(const CgroupV2Controller& reader) : _reader(reader) {
     }
-
     int cpu_quota() override;
     int cpu_period() override;
     int cpu_shares() override;

@@ -336,7 +336,6 @@ class os: AllStatic {
   [[nodiscard]] static bool available_memory(size_t& value);
   [[nodiscard]] static bool used_memory(size_t& value);
   [[nodiscard]] static bool free_memory(size_t& value);
-  [[nodiscard]] static bool compressed_memory(size_t& value);
 
   [[nodiscard]] static bool total_swap_space(size_t& value);
   [[nodiscard]] static bool free_swap_space(size_t& value);

@@ -47,6 +47,7 @@ class os::Bsd {
 
   static bool available_memory(size_t& value);
   static bool free_memory(size_t& value);
+  static bool compressed_memory(size_t& value);
   static size_t physical_memory() { return _physical_memory; }
   static void initialize_system_info();
 

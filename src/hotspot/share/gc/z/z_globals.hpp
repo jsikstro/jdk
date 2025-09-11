@@ -120,7 +120,7 @@
           range(-1, static_cast<int>(ZPageAgeCount) - 1)                    \
                                                                             \
   product(bool, ZMemoryHeating, true, DIAGNOSTIC,                           \
-          "Use concurent memory worker(s) to optimize committed memory")    \
+          "Use concurrent memory worker(s) to optimize committed memory")   \
                                                                             \
   develop(bool, ZVerifyOops, false,                                         \
           "Verify accessed oops")                                           \

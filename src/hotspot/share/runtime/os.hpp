@@ -294,6 +294,7 @@ class os: AllStatic {
   static jlong elapsed_frequency();
 
   static double elapsed_process_cpu_time();
+  static double elapsed_system_cpu_time();
 
   // Return current local time in a string (YYYY-MM-DD HH:MM:SS).
   // It is MT safe, but not async-safe, as reading time zone

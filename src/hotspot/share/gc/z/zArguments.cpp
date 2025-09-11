@@ -44,48 +44,6 @@ void ZArguments::initialize_alignments() {
   HeapAlignment = SpaceAlignment;
 }
 
-void ZArguments::set_heap_size() {
-  const size_t default_min_heap_size_bytes = 2 * M;
-  const double default_max_heap_size_percent = (1.0 - ZMemoryCriticalThreshold) * 100.0;
-
-  const bool explicit_max_heap_size =  FLAG_IS_CMDLINE(MaxHeapSize) ||
-                                       FLAG_IS_CMDLINE(MaxRAMPercentage);
-  const bool explicit_min_heap_size =  FLAG_IS_CMDLINE(MinHeapSize) ||
-                                       FLAG_IS_CMDLINE(MinRAMPercentage);
-  const bool explicit_init_heap_size = FLAG_IS_CMDLINE(InitialHeapSize) ||
-                                       FLAG_IS_CMDLINE(InitialRAMPercentage);
-
-  ZAdaptiveHeap::initialize(explicit_max_heap_size);
-
-  if (!ZAdaptiveHeap::can_adapt()) {
-    // When automatic heap sizing is disabled, don't try to prepare the default
-    // heap size in the automatic heap sizing friendly way.
-
-    if (Atomic::load(&ZGCPressure) != 0.0) {
-      if (FLAG_IS_CMDLINE(ZGCPressure)) {
-        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
-                        "Adaptive heap sizing is not available.");
-      }
-      // If the heap size is fixed, set ZGCPressure to 0.0
-      FLAG_SET_ERGO(ZGCPressure, 0.0);
-    }
-
-    return;
-  }
-
-  // If automatic heap sizing is not explicitly turned off, adjust the default
-  // heap ergonomics to be less constraining; the constraints are dynamic.
-  if (!explicit_max_heap_size) {
-    FLAG_SET_ERGO(MaxRAMPercentage, default_max_heap_size_percent);
-  }
-  if (!explicit_min_heap_size) {
-    FLAG_SET_ERGO(MinHeapSize, default_min_heap_size_bytes);
-  }
-  if (!explicit_init_heap_size) {
-    FLAG_SET_ERGO(InitialHeapSize, default_min_heap_size_bytes);
-  }
-}
-
 void ZArguments::initialize_heap_flags_and_sizes() {
   GCArguments::initialize_heap_flags_and_sizes();
 
@@ -162,14 +120,20 @@ void ZArguments::select_max_gc_threads() {
   }
 }
 
-void ZArguments::initialize() {
-  GCArguments::initialize();
+void ZArguments::set_heap_size() {
+  const size_t default_min_heap_size_bytes = 2 * M;
+  const double default_max_heap_size_percent = (1.0 - ZMemoryCriticalThreshold) * 100.0;
 
-  // TODO: We need a pre set_heap_size check and a post set_heap_size.
-  //       When we unify Arguments::set_heap_size and GCArguments::set_heap_size
-  //       we can move this type of logic to the begining and the end of that
-  //       function.
-  if (!ZAdaptiveHeap::can_adapt()) {
+  const bool explicit_max_heap_size =  FLAG_IS_CMDLINE(MaxHeapSize) ||
+                                       FLAG_IS_CMDLINE(MaxRAMPercentage);
+  const bool explicit_min_heap_size =  FLAG_IS_CMDLINE(MinHeapSize) ||
+                                       FLAG_IS_CMDLINE(MinRAMPercentage);
+  const bool explicit_init_heap_size = FLAG_IS_CMDLINE(InitialHeapSize) ||
+                                       FLAG_IS_CMDLINE(InitialRAMPercentage);
+
+  ZAdaptiveHeap::initialize(explicit_max_heap_size);
+
+  auto apply_ergo_on_cannot_adapt = [&]() {
     // When automatic heap sizing is disabled, don't try to prepare the default
     // heap size in the automatic heap sizing friendly way.
 
@@ -181,7 +145,36 @@ void ZArguments::initialize() {
       // If the heap size is fixed, set ZGCPressure to 0.0
       FLAG_SET_ERGO(ZGCPressure, 0.0);
     }
+  };
+
+  if (!ZAdaptiveHeap::can_adapt()) {
+    apply_ergo_on_cannot_adapt();
+  } else {
+    // If automatic heap sizing is not explicitly turned off, adjust the default
+    // heap ergonomics to be less constraining; the constraints are dynamic.
+    if (!explicit_max_heap_size) {
+      FLAG_SET_ERGO(MaxRAMPercentage, default_max_heap_size_percent);
+    }
+    if (!explicit_min_heap_size) {
+      FLAG_SET_ERGO(MinHeapSize, default_min_heap_size_bytes);
+    }
+    if (!explicit_init_heap_size) {
+      FLAG_SET_ERGO(InitialHeapSize, default_min_heap_size_bytes);
+    }
   }
+
+  // Let the shared code setup the set the heap size
+  GCArguments::set_heap_size();
+
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // After setting the heap size we may have ended up with a configuration
+    // which we cannot adapt. Apply ergo on cannot adapt.
+    apply_ergo_on_cannot_adapt();
+  }
+}
+
+void ZArguments::initialize() {
+  GCArguments::initialize();
 
   // NUMA settings
   if (FLAG_IS_DEFAULT(ZFakeNUMA)) {

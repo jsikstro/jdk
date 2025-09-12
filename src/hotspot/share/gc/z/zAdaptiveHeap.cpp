@@ -510,9 +510,9 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
   const size_t old_live = stats->live_at_mark_end();
   const size_t old_used = ZHeap::heap()->used_old();
   const size_t old_allocated = old_used - old_live;
-  const double old_alloc_rate = MAX2(old_allocated / M / avg_time_since_last, 1.0);
+  const double old_alloc_rate = MAX2((double)old_allocated / M / avg_time_since_last, 1.0);
 
-  const double time_to_old_oom = free_heap / M / old_alloc_rate;
+  const double time_to_old_oom = (double)free_heap / M / old_alloc_rate;
 
   const double free_ratio = double(target_capacity) / double(free_heap);
 
@@ -563,7 +563,7 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_c
   // processes can also take the memory as we might not be alone. By scaling
   // the available memory we stay on the pessimistic size, and let the estimated
   // current max capacity grow gradually as we approach the limits instead.
-  const size_t scaled_available_memory = available_memory >= 0 ? (available_memory * (1.0 - ZMemoryCriticalThreshold))
+  const size_t scaled_available_memory = available_memory >= 0 ? (size_t)(available_memory * (1.0 - ZMemoryCriticalThreshold))
                                                                : 0;
   const size_t max_available = align_down(capacity + scaled_available_memory, ZGranuleSize);
 

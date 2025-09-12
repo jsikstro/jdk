@@ -117,6 +117,8 @@ public:
   uintx thread_id_for_printing() const override {
     return (uintx)_thread_id;
   }
+
+  void print_on(outputStream* st) const override;
 };
 
 #endif // OS_LINUX_OSTHREAD_LINUX_HPP

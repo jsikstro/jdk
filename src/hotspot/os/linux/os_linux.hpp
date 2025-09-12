@@ -99,6 +99,8 @@ class os::Linux {
   static int kernel_version_compare(long major1, long minor1, long patch1,
                                     long major2, long minor2, long patch2);
 
+  static void print_thread_affinity(pid_t tid, outputStream* st);
+
   // which_logical_cpu=-1 returns accumulated ticks for all cpus.
   static bool get_tick_information(CPUPerfTicks* pticks, int which_logical_cpu);
   static bool _stack_is_executable;

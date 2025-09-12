@@ -2681,6 +2681,47 @@ void os::pd_print_cpu_info(outputStream* st, char* buf, size_t buflen) {
   print_sys_devices_cpu_info(st);
 }
 
+void os::Linux::print_thread_affinity(pid_t tid, outputStream* st) {
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+
+  st->print("affinity=");
+
+  if (sched_getaffinity(tid, sizeof(mask), &mask) == -1) {
+    st->print("<unknown affinity>");
+    return;
+  }
+
+  const size_t num_cpus = os::processor_count();
+  bool first = true;
+  size_t i = 0;
+  while (i < num_cpus) {
+    if (!CPU_ISSET(i, &mask)) {
+      i++;
+      continue;
+    }
+
+    size_t start = i;
+    while ((i + 1 < num_cpus) && CPU_ISSET(i + 1, &mask)) {
+      i++;
+    }
+    size_t end = i;
+
+    if (!first) {
+      st->print(",");
+    }
+
+    if (start == end) {
+      st->print("%zu", start);
+    } else {
+      st->print("%zu-%zu", start, end);
+    }
+
+    first = false;
+    i++;
+  }
+}
+
 #if INCLUDE_JFR
 
 void os::jfr_report_memory_info() {

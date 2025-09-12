@@ -238,7 +238,7 @@ static size_t heuristic_hard_capacity(const ZDirectorStats& stats) {
   const size_t used_memory = stats._heap._capacity;
   const size_t max_capacity = stats._heap._current_max_capacity;
   const size_t available_memory = max_capacity - used_memory;
-  const size_t scaled_available_memory = available_memory * 0.2;
+  const size_t scaled_available_memory = (size_t)(available_memory * 0.2);
   return align_down(used_memory + scaled_available_memory, ZGranuleSize);
 }
 

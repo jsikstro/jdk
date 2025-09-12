@@ -23,8 +23,10 @@
  */
 
 #include "memory/allocation.hpp"
+#include "os_linux.hpp"
 #include "runtime/mutex.hpp"
 #include "runtime/osThread.hpp"
+#include "utilities/ostream.hpp"
 
 #include <signal.h>
 
@@ -43,4 +45,10 @@ OSThread::OSThread()
 
 OSThread::~OSThread() {
   delete _startThread_lock;
+}
+
+void OSThread::print_on(outputStream* st) const {
+  OSThreadBase::print_on(st);
+
+  os::Linux::print_thread_affinity(_thread_id, st);
 }

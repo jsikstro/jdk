@@ -72,7 +72,7 @@ class OSThreadBase: public CHeapObj<mtThread> {
   virtual uintx thread_id_for_printing() const = 0;
 
   // Printing
-  void print_on(outputStream* st) const;
+  virtual void print_on(outputStream* st) const;
   void print() const;
 };
 

@@ -93,7 +93,6 @@ public:
   ZPartition(uint32_t numa_id,
              ZPageAllocator* page_allocator,
              size_t min_capacity,
-             size_t initial_capacity,
              size_t static_max_capacity);
 
   size_t dynamic_max_capacity() const;

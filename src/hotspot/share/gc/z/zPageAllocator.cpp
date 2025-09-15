@@ -641,7 +641,6 @@ void ZPartition::verify_memory_allocation_association(const ZMemoryAllocation* a
 ZPartition::ZPartition(uint32_t numa_id,
                        ZPageAllocator* page_allocator,
                        size_t min_capacity,
-                       size_t initial_capacity,
                        size_t static_max_capacity)
   : _page_allocator(page_allocator),
     _cache(),
@@ -1536,7 +1535,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _used(0),
     _used_generations{0,0},
     _collection_stats{{0, 0},{0, 0}},
-    _partitions(ZValueIdTagType{}, this, min_capacity, initial_capacity, static_max_capacity),
+    _partitions(ZValueIdTagType{}, this, min_capacity, static_max_capacity),
     _stalled(),
     _safe_destroy(),
     _initialized(false) {

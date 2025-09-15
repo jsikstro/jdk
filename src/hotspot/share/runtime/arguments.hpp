@@ -25,7 +25,6 @@
 #ifndef SHARE_RUNTIME_ARGUMENTS_HPP
 #define SHARE_RUNTIME_ARGUMENTS_HPP
 
-#include "gc/shared/gcArguments.hpp"
 #include "logging/logLevel.hpp"
 #include "logging/logTag.hpp"
 #include "memory/allocation.hpp"
@@ -157,7 +156,6 @@ class Arguments : AllStatic {
   friend class JvmtiExport;
   friend class ArgumentsTest;
   friend class LargeOptionsTest;
-  friend class GCArguments;
  public:
   // Operation modi
   enum Mode {

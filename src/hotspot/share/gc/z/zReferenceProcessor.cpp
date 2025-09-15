@@ -43,11 +43,11 @@
 static const ZStatSubPhase ZSubPhaseConcurrentReferencesProcess("Concurrent References Process", ZGenerationId::old);
 static const ZStatSubPhase ZSubPhaseConcurrentReferencesEnqueue("Concurrent References Enqueue", ZGenerationId::old);
 
-class ZLRUMaxHeapPolicy : public LRUMaxHeapPolicy {
+class ZLRUMaxHeapPolicy : public AbstractLRUReferencePolicy {
 public:
   // Capture state (of-the-VM) information needed to evaluate the policy
-  void setup() {
-    _max_interval = (jlong)ZAdaptiveHeap::soft_ref_delay();
+  void setup() final {
+    set_max_interval((jlong)ZAdaptiveHeap::soft_ref_delay());
   }
 };
 

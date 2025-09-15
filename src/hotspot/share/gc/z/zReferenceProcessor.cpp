@@ -47,7 +47,7 @@ class ZLRUMaxHeapPolicy : public LRUMaxHeapPolicy {
 public:
   // Capture state (of-the-VM) information needed to evaluate the policy
   void setup() {
-    _max_interval = ZAdaptiveHeap::soft_ref_delay();
+    _max_interval = (jlong)ZAdaptiveHeap::soft_ref_delay();
   }
 };
 

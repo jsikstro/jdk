@@ -158,9 +158,6 @@ void ZArguments::set_heap_size() {
     if (!explicit_min_heap_size) {
       FLAG_SET_ERGO(MinHeapSize, default_min_heap_size_bytes);
     }
-    if (!explicit_init_heap_size) {
-      FLAG_SET_ERGO(InitialHeapSize, default_min_heap_size_bytes);
-    }
   }
 
   // Let the shared code setup the set the heap size
@@ -170,6 +167,10 @@ void ZArguments::set_heap_size() {
     // After setting the heap size we may have ended up with a configuration
     // which we cannot adapt. Apply ergo on cannot adapt.
     apply_ergo_on_cannot_adapt();
+  } else {
+    if (!explicit_init_heap_size) {
+      FLAG_SET_ERGO(InitialHeapSize, MinHeapSize);
+    }
   }
 }
 

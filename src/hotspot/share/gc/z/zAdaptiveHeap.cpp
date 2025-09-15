@@ -35,8 +35,8 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+#include <cmath>
 #include <limits>
-#include <math.h>
 
 bool ZAdaptiveHeap::_explicit_max_capacity;
 TruncatedSeq ZAdaptiveHeap::_gc_pressures;

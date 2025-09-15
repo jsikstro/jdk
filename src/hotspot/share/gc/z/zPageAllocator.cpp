@@ -1626,7 +1626,7 @@ size_t ZPageAllocator::heuristic_max_capacity() const {
   size_t result;
 
   if (soft_max_capacity == 0) {
-    // There is no human soft max heap, but the JVM has a clue
+    // There is no user soft max, but the JVM has a clue
     result = heuristic_max_capacity;
   } else {
     // If there is both a user soft max and a JVM soft max, pick the smallest

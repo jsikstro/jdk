@@ -126,8 +126,7 @@ void ZArguments::set_heap_size() {
 
   const bool explicit_max_heap_size =  FLAG_IS_CMDLINE(MaxHeapSize) ||
                                        FLAG_IS_CMDLINE(MaxRAMPercentage);
-  const bool explicit_min_heap_size =  FLAG_IS_CMDLINE(MinHeapSize) ||
-                                       FLAG_IS_CMDLINE(MinRAMPercentage);
+  const bool explicit_min_heap_size =  FLAG_IS_CMDLINE(MinHeapSize);
   const bool explicit_init_heap_size = FLAG_IS_CMDLINE(InitialHeapSize) ||
                                        FLAG_IS_CMDLINE(InitialRAMPercentage);
 

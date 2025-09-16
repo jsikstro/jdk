@@ -2484,11 +2484,11 @@ void ZPageAllocator::truncate_heuristic_max_after_commit_failure() {
       if (Atomic::cmpxchg(&_heuristic_max_capacity, heuristic_max, capacity) != heuristic_max) {
         continue;
       }
-      const size_t current_max_cap = current_max_capacity();
+      const size_t current_max = current_max_capacity();
       log_debug(gc)("Forced to lower heap size from "
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
-                    heuristic_max / M, percent_of(heuristic_max, current_max_cap),
-                    capacity / M, percent_of(capacity, current_max_cap));
+                    heuristic_max / M, percent_of(heuristic_max, current_max),
+                    capacity / M, percent_of(capacity, current_max));
       heap_truncated(capacity);
     }
     return;

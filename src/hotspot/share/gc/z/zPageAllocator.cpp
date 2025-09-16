@@ -2489,7 +2489,7 @@ void ZPageAllocator::truncate_heuristic_max_after_commit_failure() {
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
                     heuristic_max / M, percent_of(heuristic_max, current_max_cap),
                     capacity / M, percent_of(capacity, current_max_cap));
-      heap_truncated(heuristic_max);
+      heap_truncated(capacity);
     }
     return;
   }

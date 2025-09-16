@@ -2477,18 +2477,18 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
 
 void ZPageAllocator::truncate_heuristic_max_after_commit_failure() {
   // Adjust heuristic max capacity to ensure GC tries to keep below current capacity
-  const size_t cap = capacity();
+  const size_t capacity = ZPageAllocator::capacity();
   for (;;) {
     const size_t heuristic_max = heuristic_max_capacity();
-    if (heuristic_max > cap) {
-      if (Atomic::cmpxchg(&_heuristic_max_capacity, heuristic_max, cap) != heuristic_max) {
+    if (heuristic_max > capacity) {
+      if (Atomic::cmpxchg(&_heuristic_max_capacity, heuristic_max, capacity) != heuristic_max) {
         continue;
       }
       const size_t current_max_cap = current_max_capacity();
       log_debug(gc)("Forced to lower heap size from "
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
                     heuristic_max / M, percent_of(heuristic_max, current_max_cap),
-                    cap / M, percent_of(cap, current_max_cap));
+                    capacity / M, percent_of(capacity, current_max_cap));
       heap_truncated(heuristic_max);
     }
     return;

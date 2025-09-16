@@ -23,10 +23,16 @@
  */
 
 #include "gc/z/jvmFlagConstraintsZ.hpp"
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 
 JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
+  if (!UseZGC) {
+    // There is no constraint when not using ZGC.
+    return JVMFlag::Error::SUCCESS;
+  }
+
   if (value < 0.0) {
     JVMFlag::printError(verbose,
                         "ZGCPressureConstraint (%f) must be greater than "

@@ -46,12 +46,20 @@ void ZArguments::initialize_alignments() {
 }
 
 void ZArguments::initialize_heap_flags_and_sizes() {
-  GCArguments::initialize_heap_flags_and_sizes();
+  precond(!FLAG_IS_ERGO(SoftMaxHeapSize));
 
-  if (!FLAG_IS_CMDLINE(SoftMaxHeapSize)) {
+  if (!ZAdaptiveHeap::explicit_max_capacity() && !ZAdaptiveHeap::can_adapt()) {
+    // We are really just guessing how much memory the program needs.
+    // When that is the case, we don't want the soft and hard limits to be the same
+    // as it can cause flakyness in the number of GC threads used, in order to keep
+    // to a random number we just pulled out of thin air.
+    FLAG_SET_ERGO_IF_DEFAULT(SoftMaxHeapSize, MaxHeapSize * 90 / 100);
+  } else {
     // This denotes there is no soft max heap size set.
-    FLAG_SET_ERGO(SoftMaxHeapSize, 0);
+    FLAG_SET_ERGO_IF_DEFAULT(SoftMaxHeapSize, 0);
   }
+
+  GCArguments::initialize_heap_flags_and_sizes();
 };
 
 void ZArguments::select_max_gc_threads() {

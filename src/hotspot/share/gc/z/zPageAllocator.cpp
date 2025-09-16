@@ -1547,7 +1547,9 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
   log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M);
   log_info_p(gc, init)("Max Capacity: %zuM", initial_max_capacity / M);
-  log_info_p(gc, init)("Soft Max Capacity: %zuM", soft_max_capacity / M);
+  if (soft_max_capacity != 0) {
+    log_info_p(gc, init)("Soft Max Capacity: %zuM", soft_max_capacity / M);
+  }
   if (ZPageSizeMediumEnabled) {
     if (ZPageSizeMediumMin == ZPageSizeMediumMax) {
       log_info_p(gc, init)("Page Size Medium: %zuM", ZPageSizeMediumMax / M);
@@ -1618,33 +1620,32 @@ size_t ZPageAllocator::current_max_capacity() const {
   return ZAdaptiveHeap::current_max_capacity(capacity(), dynamic_max_capacity());
 }
 
-size_t ZPageAllocator::heuristic_max_capacity() const {
+static size_t clamp_to_soft_max_capacity(size_t value) {
+  assert(is_aligned(value, ZGranuleSize), "Must be granule aligned: 0x%08zx", value);
   // Note that SoftMaxHeapSize is a manageable flag
-  const size_t soft_max_capacity = Atomic::load(&SoftMaxHeapSize);
-  const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
-
-  size_t result;
+  const size_t soft_max_capacity = align_down(Atomic::load(&SoftMaxHeapSize), ZGranuleSize);
 
   if (soft_max_capacity == 0) {
-    // There is no user soft max, but the JVM has a clue
-    result = heuristic_max_capacity;
-  } else {
-    // If there is both a user soft max and a JVM soft max, pick the smallest
-    result = MIN2(soft_max_capacity, heuristic_max_capacity);
+    // SoftMaxHeapSize is disabled / unspecified.
+    return value;
   }
+  return MIN2(soft_max_capacity, value);
+}
 
-  return align_down(result, ZGranuleSize);
+size_t ZPageAllocator::heuristic_max_capacity() const {
+  const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
+
+  return clamp_to_soft_max_capacity(heuristic_max_capacity);
 }
 
 void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
-  const size_t soft_max_capacity = align_down(Atomic::load(&SoftMaxHeapSize), ZGranuleSize);
   const size_t heuristic_max = heuristic_max_capacity();
   const size_t min_capacity = _min_capacity;
   const size_t used = ZPageAllocator::used();
   const size_t capacity = MAX2(ZPageAllocator::capacity(), used);
   const size_t curr_max_capacity = MAX2(capacity, current_max_capacity());
-  const size_t highest_soft_capacity = soft_max_capacity == 0 ? curr_max_capacity
-                                                              : MIN2(soft_max_capacity, curr_max_capacity);
+  const size_t highest_soft_capacity = clamp_to_soft_max_capacity(curr_max_capacity);
+
   const double alloc_rate = ZStatMutatorAllocRate::stats()._avg;
 
   ZHeapResizeMetrics metrics = {

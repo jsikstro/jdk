@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcArguments.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAddressSpaceLimit.hpp"
@@ -130,25 +131,9 @@ void ZArguments::set_heap_size() {
   const bool explicit_init_heap_size = FLAG_IS_CMDLINE(InitialHeapSize) ||
                                        FLAG_IS_CMDLINE(InitialRAMPercentage);
 
-  ZAdaptiveHeap::initialize(explicit_max_heap_size);
+  const bool ahs_explicitly_disabled = Atomic::load(&ZGCPressure) == 0.0;
 
-  auto apply_ergo_on_cannot_adapt = [&]() {
-    // When automatic heap sizing is disabled, don't try to prepare the default
-    // heap size in the automatic heap sizing friendly way.
-
-    if (Atomic::load(&ZGCPressure) != 0.0) {
-      if (FLAG_IS_CMDLINE(ZGCPressure)) {
-        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
-                        "Adaptive heap sizing is not available.");
-      }
-      // If the heap size is fixed, set ZGCPressure to 0.0
-      FLAG_SET_ERGO(ZGCPressure, 0.0);
-    }
-  };
-
-  if (!ZAdaptiveHeap::can_adapt()) {
-    apply_ergo_on_cannot_adapt();
-  } else {
+  if (!ahs_explicitly_disabled) {
     // If automatic heap sizing is not explicitly turned off, adjust the default
     // heap ergonomics to be less constraining; the constraints are dynamic.
     if (!explicit_max_heap_size) {
@@ -162,15 +147,27 @@ void ZArguments::set_heap_size() {
   // Let the shared code setup the set the heap size
   GCArguments::set_heap_size();
 
-  if (!ZAdaptiveHeap::can_adapt()) {
-    // After setting the heap size we may have ended up with a configuration
-    // which we cannot adapt. Apply ergo on cannot adapt.
-    apply_ergo_on_cannot_adapt();
-  } else {
+  const bool can_adapt = !ahs_explicitly_disabled && MaxHeapSize != MinHeapSize;
+
+  if (can_adapt) {
     if (!explicit_init_heap_size) {
       FLAG_SET_ERGO(InitialHeapSize, MinHeapSize);
     }
+  } else {
+    // After setting the heap size we may have ended up with a configuration
+    // which we cannot adapt.
+
+    if (!ahs_explicitly_disabled) {
+      if (FLAG_IS_CMDLINE(ZGCPressure)) {
+        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
+                        "Adaptive heap sizing is not available.");
+      }
+      // If the heap size is fixed, set ZGCPressure to 0.0
+      FLAG_SET_ERGO(ZGCPressure, 0.0);
+    }
   }
+
+  ZAdaptiveHeap::initialize(explicit_max_heap_size, can_adapt);
 }
 
 void ZArguments::initialize() {

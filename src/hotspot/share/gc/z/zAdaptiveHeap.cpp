@@ -39,6 +39,8 @@
 #include <limits>
 
 bool ZAdaptiveHeap::_explicit_max_capacity;
+bool ZAdaptiveHeap::_can_adapt;
+bool ZAdaptiveHeap::_initialized;
 TruncatedSeq ZAdaptiveHeap::_gc_pressures;
 
 volatile double ZAdaptiveHeap::_young_to_old_gc_time = 1.0;
@@ -49,11 +51,12 @@ ZAdaptiveHeap::ZGenerationOverhead ZAdaptiveHeap::_old_data;
 static ZLock* _stat_lock;
 
 bool ZAdaptiveHeap::can_adapt() {
-  bool static_heap = ZAdaptiveHeap::explicit_max_capacity() && MinHeapSize == MaxHeapSize;
-  return !static_heap && Atomic::load(&ZGCPressure) != 0.0;
+  precond(_initialized);
+  return _can_adapt;
 }
 
-void ZAdaptiveHeap::initialize(bool explicit_max_capacity) {
+void ZAdaptiveHeap::initialize(bool explicit_max_capacity, bool can_adapt) {
+  precond(!_initialized);
   double process_time_now = os::elapsed_process_cpu_time();
   double time_now = os::elapsedTime();
   _young_data._last_system_time = process_time_now;
@@ -63,14 +66,18 @@ void ZAdaptiveHeap::initialize(bool explicit_max_capacity) {
   _young_data._last_time = time_now;
   _old_data._last_time = time_now;
   _explicit_max_capacity = explicit_max_capacity;
+  _can_adapt = can_adapt;
   _stat_lock = new ZLock();
+  _initialized = true;
 }
 
 double ZAdaptiveHeap::young_to_old_gc_time() {
+  precond(_initialized);
   return Atomic::load(&_young_to_old_gc_time);
 }
 
 ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
+  precond(_initialized);
   const size_t system_max_memory = os::physical_memory();
   size_t system_used_memory = 0;
   if (!os::used_memory(system_used_memory)) {
@@ -110,6 +117,7 @@ static double critical_threshold(const ZMemoryPressureMetrics& metrics) {
 }
 
 double ZAdaptiveHeap::memory_pressure(const ZMemoryPressureMetrics& metrics) {
+  precond(_initialized);
   const size_t available_memory = metrics._system_max_memory - metrics._system_used_memory;
 
   // The remaining memory reserve of the machine
@@ -143,6 +151,7 @@ double ZAdaptiveHeap::memory_pressure(const ZMemoryPressureMetrics& metrics) {
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_concerning(const ZMemoryPressureMetrics& metrics) {
+  precond(_initialized);
   const size_t available_memory = metrics._system_max_memory - metrics._system_used_memory;
   const double availability = double(available_memory) / double(metrics._system_max_memory);
 
@@ -150,6 +159,7 @@ bool ZAdaptiveHeap::is_memory_pressure_concerning(const ZMemoryPressureMetrics& 
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_high(const ZMemoryPressureMetrics& metrics) {
+  precond(_initialized);
   const size_t available_memory = metrics._system_max_memory - metrics._system_used_memory;
   const double availability = double(available_memory) / double(metrics._system_max_memory);
 
@@ -157,6 +167,7 @@ bool ZAdaptiveHeap::is_memory_pressure_high(const ZMemoryPressureMetrics& metric
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_critical(const ZMemoryPressureMetrics& metrics) {
+  precond(_initialized);
   const size_t available_memory = metrics._system_max_memory - metrics._system_used_memory;
   const double availability = double(available_memory) / double(metrics._system_max_memory);
 
@@ -164,6 +175,7 @@ bool ZAdaptiveHeap::is_memory_pressure_critical(const ZMemoryPressureMetrics& me
 }
 
 double ZAdaptiveHeap::gc_pressure(double unscaled_gc_pressure, double process_cpu_usage, double system_cpu_usage, double& mem_pressure) {
+  precond(_initialized);
   const size_t system_max_memory = os::physical_memory();
   size_t system_used_memory = 0;
   if (!os::used_memory(system_used_memory)) {
@@ -257,6 +269,7 @@ static double smoothing_function(double value, double warmness) {
 }
 
 size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGenerationId generation) {
+  precond(_initialized);
   double unscaled_gc_pressure = Atomic::load(&ZGCPressure);
 
   const bool is_major = Thread::current() == ZDriver::major();
@@ -446,6 +459,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
 }
 
 double ZAdaptiveHeap::uncommit_urgency(size_t used_memory, size_t total_memory) {
+  precond(_initialized);
   const size_t available_memory = total_memory - used_memory;
 
   // If we are critically low on memory, aggressively free up memory
@@ -478,6 +492,7 @@ double ZAdaptiveHeap::uncommit_urgency(size_t used_memory, size_t total_memory) 
 }
 
 uint64_t ZAdaptiveHeap::soft_ref_delay() {
+  precond(_initialized);
   ZStatHeap* const stats = ZGeneration::old()->stat_heap();
   // Young generation should have mostly transient state;
   // consider it as basically free.
@@ -554,6 +569,7 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
 }
 
 size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_capacity) {
+  precond(_initialized);
   size_t used_memory = 0;
   if (!os::used_memory(used_memory)) {
     // TODO: Handle os::used_memory being unavailable.
@@ -572,6 +588,7 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_c
 }
 
 void ZAdaptiveHeap::print() {
+  precond(_initialized);
   const char* status;
   if (!can_adapt()) {
     status = "Manual";

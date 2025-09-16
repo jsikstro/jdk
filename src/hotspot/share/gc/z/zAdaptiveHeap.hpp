@@ -49,6 +49,8 @@ struct ZMemoryPressureMetrics {
 class ZAdaptiveHeap : public AllStatic {
 private:
   static bool _explicit_max_capacity;
+  static bool _can_adapt;
+  static bool _initialized;
   static TruncatedSeq _gc_pressures;
 
   struct ZGenerationOverhead {
@@ -78,7 +80,7 @@ private:
   static double memory_pressure(const ZMemoryPressureMetrics& metrics);
 
 public:
-  static void initialize(bool explicit_max_heap_size);
+  static void initialize(bool explicit_max_heap_size, bool can_adapt);
 
   static size_t compute_heap_size(ZHeapResizeMetrics* metrics, ZGenerationId generation);
   static double young_to_old_gc_time();

@@ -22,8 +22,8 @@
  *
  */
 
-#include "gc/z/jvmFlagConstraintsZ.hpp"
 #include "gc/shared/gc_globals.hpp"
+#include "gc/z/jvmFlagConstraintsZ.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 

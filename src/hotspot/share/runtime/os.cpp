@@ -2497,22 +2497,17 @@ size_t os::PageSizes::smallest() const {
 }
 
 void os::PageSizes::print_on(outputStream* st) const {
-  bool first = true;
+  bool any = false;
   for (size_t sz = smallest(); sz != 0; sz = next_larger(sz)) {
-    if (first) {
-      first = false;
-    } else {
+    if (!any) {
       st->print_raw(", ");
     }
-    if (sz < M) {
-      st->print("%zuk", sz / K);
-    } else if (sz < G) {
-      st->print("%zuM", sz / M);
-    } else {
-      st->print("%zuG", sz / G);
-    }
+
+    st->print(EXACTFMT, EXACTFMTARGS(sz));
+    any = true;
   }
-  if (first) {
+
+  if (!any) {
     st->print("empty");
   }
 }

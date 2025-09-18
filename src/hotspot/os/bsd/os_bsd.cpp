@@ -1464,25 +1464,21 @@ void os::get_summary_cpu_info(char* buf, size_t buflen) {
 }
 
 void os::print_memory_info(outputStream* st) {
-  xsw_usage swap_usage;
-  size_t size = sizeof(swap_usage);
-
   st->print("Memory:");
-  st->print(" %zuk page", os::vm_page_size()>>10);
-  size_t phys_mem = os::physical_memory();
-  st->print(", physical %zuk",
-            phys_mem >> 10);
+  st->print(" %zuk page", os::vm_page_size() / K);
+  st->print(", physical %zuK", os::physical_memory() / K);
+
   size_t avail_mem = 0;
   (void)os::available_memory(avail_mem);
-  st->print("(%zuk free)",
-            avail_mem >> 10);
+  st->print(" (%zuK free)", avail_mem / K);
 
-  if((sysctlbyname("vm.swapusage", &swap_usage, &size, nullptr, 0) == 0) || (errno == ENOMEM)) {
+  xsw_usage swap_usage;
+  size_t size = sizeof(swap_usage);
+  int ret = sysctlbyname("vm.swapusage", &swap_usage, &size, nullptr, 0);
+  if(ret == 0 || errno == ENOMEM) {
     if (size >= offset_of(xsw_usage, xsu_used)) {
-      st->print(", swap " UINT64_FORMAT "k",
-                ((julong) swap_usage.xsu_total) >> 10);
-      st->print("(" UINT64_FORMAT "k free)",
-                ((julong) swap_usage.xsu_avail) >> 10);
+      st->print(", swap " UINT64_FORMAT "K", (uint64_t)swap_usage.xsu_total / K);
+      st->print(" (" UINT64_FORMAT "K free)", (uint64_t)swap_usage.xsu_avail / K);
     }
   }
 

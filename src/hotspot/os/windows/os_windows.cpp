@@ -2136,43 +2136,44 @@ void os::get_summary_cpu_info(char* buf, size_t buflen) {
 
 void os::print_memory_info(outputStream* st) {
   st->print("Memory:");
-  st->print(" %zuk page", os::vm_page_size()>>10);
+  st->print(" %zuK page", os::vm_page_size() / K);
 
-  // Use GlobalMemoryStatusEx() because GlobalMemoryStatus() may return incorrect
-  // value if total memory is larger than 4GB
   MEMORYSTATUSEX ms;
   ms.dwLength = sizeof(ms);
   int r1 = GlobalMemoryStatusEx(&ms);
 
   if (r1 != 0) {
-    st->print(", system-wide physical " INT64_FORMAT "M ",
-             (int64_t) ms.ullTotalPhys >> 20);
-    st->print("(" INT64_FORMAT "M free)\n", (int64_t) ms.ullAvailPhys >> 20);
+    st->print(", physical " UINT64_FORMAT "M", (uint64_t)ms.ullTotalPhys / M);
+    st->print(" (" UINT64_FORMAT "M free)", (uint64_t)ms.ullAvailPhys / M);
+    st->cr();
 
-    st->print("TotalPageFile size " INT64_FORMAT "M ",
-             (int64_t) ms.ullTotalPageFile >> 20);
-    st->print("(AvailPageFile size " INT64_FORMAT "M)",
-             (int64_t) ms.ullAvailPageFile >> 20);
+    st->print("TotalPageFile size " UINT64_FORMAT "M", (uint64_t)ms.ullTotalPageFile / M);
+    st->print(" (AvailPageFile size " UINT64_FORMAT "M)", (uint64_t)ms.ullAvailPageFile / M);
   } else {
     st->print(", GlobalMemoryStatusEx did not succeed so we miss some memory values.");
   }
 
-  // extended memory statistics for a process
+  st->cr();
+
+  // Extended memory statistics for a process
   PROCESS_MEMORY_COUNTERS_EX pmex;
   ZeroMemory(&pmex, sizeof(PROCESS_MEMORY_COUNTERS_EX));
   pmex.cb = sizeof(pmex);
-  int r2 = GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*) &pmex, sizeof(pmex));
+  int r2 = GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmex, sizeof(pmex));
 
   if (r2 != 0) {
-    st->print("\ncurrent process WorkingSet (physical memory assigned to process): " INT64_FORMAT "M, ",
-             (int64_t) pmex.WorkingSetSize >> 20);
-    st->print("peak: " INT64_FORMAT "M\n", (int64_t) pmex.PeakWorkingSetSize >> 20);
+    st->print("current process WorkingSet (physical memory assigned to process): " UINT64_FORMAT "M, ",
+              (uint64_t) pmex.WorkingSetSize / M);
+    st->print("peak: " UINT64_FORMAT "M",
+              (uint64_t)pmex.PeakWorkingSetSize / M);
+    st->cr();
 
-    st->print("current process commit charge (\"private bytes\"): " INT64_FORMAT "M, ",
-             (int64_t) pmex.PrivateUsage >> 20);
-    st->print("peak: " INT64_FORMAT "M", (int64_t) pmex.PeakPagefileUsage >> 20);
+    st->print("current process commit charge (\"private bytes\"): " UINT64_FORMAT "M, ",
+              (uint64_t) pmex.PrivateUsage / M);
+    st->print("peak: " UNT64_FORMAT "M",
+              (uint64_t)pmex.PeakPagefileUsage / M);
   } else {
-    st->print("\nGetProcessMemoryInfo did not succeed so we miss some memory values.");
+    st->print("GetProcessMemoryInfo did not succeed so we miss some memory values.");
   }
 
   st->cr();

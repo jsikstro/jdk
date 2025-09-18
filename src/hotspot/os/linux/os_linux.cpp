@@ -2562,25 +2562,21 @@ void os::Linux::print_steal_info(outputStream* st) {
 }
 
 void os::print_memory_info(outputStream* st) {
-
   st->print("Memory:");
-  st->print(" %zuk page", os::vm_page_size()>>10);
+  st->print(" %zuK page", os::vm_page_size() / K);
+  st->print(", physical %zuK", os::physical_memory() / K);
+
+  size_t avail_mem = 0;
+  (void)os::available_memory(avail_mem);
+  st->print(" (%zuK free)", avail_mem / K);
 
   // values in struct sysinfo are "unsigned long"
   struct sysinfo si;
   sysinfo(&si);
-  size_t phys_mem = physical_memory();
-  st->print(", physical %zuk",
-            phys_mem >> 10);
-  size_t avail_mem = 0;
-  (void)os::available_memory(avail_mem);
-  st->print("(%zuk free)",
-            avail_mem >> 10);
-  st->print(", swap " UINT64_FORMAT "k",
-            ((jlong)si.totalswap * si.mem_unit) >> 10);
-  st->print("(" UINT64_FORMAT "k free)",
-            ((jlong)si.freeswap * si.mem_unit) >> 10);
+  st->print(", swap " UINT64_FORMAT "K", ((uint64_t)si.totalswap * si.mem_unit) / K);
+  st->print(" (" UINT64_FORMAT "K free)", ((uint64_t)si.freeswap * si.mem_unit) / K);
   st->cr();
+
   st->print("Page Sizes: ");
   _page_sizes.print_on(st);
   st->cr();

@@ -118,25 +118,23 @@ size_t MutableNUMASpace::free_in_words() const {
   return s;
 }
 
-int MutableNUMASpace::lgrp_space_index(int lgrp_id) const {
+int MutableNUMASpace::lgrp_space_index_for_current_thread() const {
+  int lgrp_id = os::numa_get_group_id();
   return lgrp_spaces()->find_if([&](LGRPSpace* space) {
     return space->lgrp_id() == checked_cast<uint>(lgrp_id);
   });
 }
 
-size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
-  int lgrp_id = os::numa_get_group_id();
-  int i = lgrp_space_index(lgrp_id);
+size_t MutableNUMASpace::tlab_capacity() const {
+  int i = lgrp_space_index_for_current_thread();
   if (i == -1) {
     return 0;
   }
   return lgrp_spaces()->at(i)->space()->capacity_in_bytes();
 }
 
-size_t MutableNUMASpace::tlab_used(Thread *thr) const {
-  // Please see the comments for tlab_capacity().
-  int lgrp_id = os::numa_get_group_id();
-  int i = lgrp_space_index(lgrp_id);
+size_t MutableNUMASpace::tlab_used() const {
+  int i = lgrp_space_index_for_current_thread();
   if (i == -1) {
     return 0;
   }
@@ -144,10 +142,8 @@ size_t MutableNUMASpace::tlab_used(Thread *thr) const {
 }
 
 
-size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *thr) const {
-  // Please see the comments for tlab_capacity().
-  int lgrp_id = os::numa_get_group_id();
-  int i = lgrp_space_index(lgrp_id);
+size_t MutableNUMASpace::unsafe_max_tlab_alloc() const {
+  int i = lgrp_space_index_for_current_thread();
   if (i == -1) {
     return 0;
   }
@@ -496,9 +492,7 @@ void MutableNUMASpace::clear(bool mangle_space) {
 }
 
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
-  Thread* thr = Thread::current();
-  int lgrp_id = os::numa_get_group_id();
-  int i = lgrp_space_index(lgrp_id);
+  int i = lgrp_space_index_for_current_thread();
   if (i == -1) {
     i = os::random() % lgrp_spaces()->length();
   }

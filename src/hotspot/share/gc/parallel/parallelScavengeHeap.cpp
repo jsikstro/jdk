@@ -426,15 +426,15 @@ void ParallelScavengeHeap::ensure_parsability(bool retire_tlabs) {
   young_gen()->eden_space()->ensure_parsability();
 }
 
-size_t ParallelScavengeHeap::tlab_capacity(Thread* ignored) const {
+size_t ParallelScavengeHeap::tlab_capacity() const {
   return young_gen()->eden_space()->tlab_capacity();
 }
 
-size_t ParallelScavengeHeap::tlab_used(Thread* ignored) const {
+size_t ParallelScavengeHeap::tlab_used() const {
   return young_gen()->eden_space()->tlab_used();
 }
 
-size_t ParallelScavengeHeap::unsafe_max_tlab_alloc(Thread* ignored) const {
+size_t ParallelScavengeHeap::unsafe_max_tlab_alloc() const {
   return young_gen()->eden_space()->unsafe_max_tlab_alloc();
 }
 

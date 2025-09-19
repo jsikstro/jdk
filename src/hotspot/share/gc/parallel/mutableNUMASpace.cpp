@@ -498,17 +498,6 @@ void MutableNUMASpace::clear(bool mangle_space) {
   }
 }
 
-/*
-   Linux supports static memory binding, therefore the most part of the
-   logic dealing with the possible invalid page allocation is effectively
-   disabled. Besides there is no notion of the home node in Linux. A
-   thread is allowed to migrate freely. Although the scheduler is rather
-   reluctant to move threads between the nodes. We check for the current
-   node every allocation. And with a high probability a thread stays on
-   the same node for some time allowing local access to recently allocated
-   objects.
- */
-
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
   Thread* thr = Thread::current();
   int lgrp_id = os::numa_get_group_id();

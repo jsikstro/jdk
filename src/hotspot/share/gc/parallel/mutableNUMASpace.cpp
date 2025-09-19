@@ -120,33 +120,27 @@ size_t MutableNUMASpace::free_in_words() const {
 
 int MutableNUMASpace::lgrp_space_index_for_current_thread() const {
   int lgrp_id = os::numa_get_group_id();
-  return lgrp_spaces()->find_if([&](LGRPSpace* space) {
+  int lgrp_space_index = lgrp_spaces()->find_if([&](LGRPSpace* space) {
     return space->lgrp_id() == checked_cast<uint>(lgrp_id);
   });
+
+  assert(lgrp_space_index != -1, "Must exist a lgrp space for lgrp_id %d", lgrp_id);
+  return lgrp_space_index;
 }
 
 size_t MutableNUMASpace::tlab_capacity() const {
   int i = lgrp_space_index_for_current_thread();
-  if (i == -1) {
-    return 0;
-  }
   return lgrp_spaces()->at(i)->space()->capacity_in_bytes();
 }
 
 size_t MutableNUMASpace::tlab_used() const {
   int i = lgrp_space_index_for_current_thread();
-  if (i == -1) {
-    return 0;
-  }
   return lgrp_spaces()->at(i)->space()->used_in_bytes();
 }
 
 
 size_t MutableNUMASpace::unsafe_max_tlab_alloc() const {
   int i = lgrp_space_index_for_current_thread();
-  if (i == -1) {
-    return 0;
-  }
   return lgrp_spaces()->at(i)->space()->free_in_bytes();
 }
 
@@ -493,10 +487,6 @@ void MutableNUMASpace::clear(bool mangle_space) {
 
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
   int i = lgrp_space_index_for_current_thread();
-  if (i == -1) {
-    i = os::random() % lgrp_spaces()->length();
-  }
-
   LGRPSpace *ls = lgrp_spaces()->at(i);
   MutableSpace *s = ls->space();
   HeapWord *p = s->cas_allocate(size);

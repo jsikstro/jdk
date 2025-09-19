@@ -125,7 +125,6 @@ int MutableNUMASpace::lgrp_space_index(int lgrp_id) const {
 }
 
 size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
-  guarantee(thr != nullptr, "No thread");
   int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {
@@ -136,7 +135,6 @@ size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
 
 size_t MutableNUMASpace::tlab_used(Thread *thr) const {
   // Please see the comments for tlab_capacity().
-  guarantee(thr != nullptr, "No thread");
   int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {
@@ -148,7 +146,6 @@ size_t MutableNUMASpace::tlab_used(Thread *thr) const {
 
 size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *thr) const {
   // Please see the comments for tlab_capacity().
-  guarantee(thr != nullptr, "No thread");
   int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {

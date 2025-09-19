@@ -126,21 +126,7 @@ int MutableNUMASpace::lgrp_space_index(int lgrp_id) const {
 
 size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
   guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    // This case can occur after the topology of the system has
-    // changed. Thread can change their location, the new home
-    // group will be determined during the first allocation
-    // attempt. For now we can safely assume that all spaces
-    // have equal size because the whole space will be reinitialized.
-    if (lgrp_spaces()->length() > 0) {
-      return capacity_in_bytes() / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
-  // That's the normal case, where we know the locality group of the thread.
+  int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {
     return 0;
@@ -151,15 +137,7 @@ size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
 size_t MutableNUMASpace::tlab_used(Thread *thr) const {
   // Please see the comments for tlab_capacity().
   guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    if (lgrp_spaces()->length() > 0) {
-      return (used_in_bytes()) / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
+  int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {
     return 0;
@@ -171,15 +149,7 @@ size_t MutableNUMASpace::tlab_used(Thread *thr) const {
 size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *thr) const {
   // Please see the comments for tlab_capacity().
   guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    if (lgrp_spaces()->length() > 0) {
-      return free_in_bytes() / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
+  int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
   if (i == -1) {
     return 0;
@@ -541,18 +511,12 @@ void MutableNUMASpace::clear(bool mangle_space) {
 
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
   Thread* thr = Thread::current();
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    lgrp_id = os::numa_get_group_id();
-    thr->set_lgrp_id(lgrp_id);
-  }
-
+  int lgrp_id = os::numa_get_group_id();
   int i = lgrp_space_index(lgrp_id);
-  // It is possible that a new CPU has been hotplugged and
-  // we haven't reshaped the space accordingly.
   if (i == -1) {
     i = os::random() % lgrp_spaces()->length();
   }
+
   LGRPSpace *ls = lgrp_spaces()->at(i);
   MutableSpace *s = ls->space();
   HeapWord *p = s->cas_allocate(size);

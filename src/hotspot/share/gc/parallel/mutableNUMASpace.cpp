@@ -118,73 +118,26 @@ size_t MutableNUMASpace::free_in_words() const {
   return s;
 }
 
-int MutableNUMASpace::lgrp_space_index(int lgrp_id) const {
-  return lgrp_spaces()->find_if([&](LGRPSpace* space) {
-    return space->lgrp_id() == checked_cast<uint>(lgrp_id);
+MutableNUMASpace::LGRPSpace* MutableNUMASpace::lgrp_space_for_current_thread() const {
+  uint lgrp_id = (uint)os::numa_get_group_id();
+  int lgrp_space_index = lgrp_spaces()->find_if([&](LGRPSpace* space) {
+    return space->lgrp_id() == lgrp_id;
   });
+
+  assert(lgrp_space_index != -1, "Must exist a lgrp space for lgrp_id %u", lgrp_id);
+  return lgrp_spaces()->at(lgrp_space_index);
 }
 
-size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
-  guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    // This case can occur after the topology of the system has
-    // changed. Thread can change their location, the new home
-    // group will be determined during the first allocation
-    // attempt. For now we can safely assume that all spaces
-    // have equal size because the whole space will be reinitialized.
-    if (lgrp_spaces()->length() > 0) {
-      return capacity_in_bytes() / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
-  // That's the normal case, where we know the locality group of the thread.
-  int i = lgrp_space_index(lgrp_id);
-  if (i == -1) {
-    return 0;
-  }
-  return lgrp_spaces()->at(i)->space()->capacity_in_bytes();
+size_t MutableNUMASpace::tlab_capacity() const {
+  return lgrp_space_for_current_thread()->space()->capacity_in_bytes();
 }
 
-size_t MutableNUMASpace::tlab_used(Thread *thr) const {
-  // Please see the comments for tlab_capacity().
-  guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    if (lgrp_spaces()->length() > 0) {
-      return (used_in_bytes()) / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
-  int i = lgrp_space_index(lgrp_id);
-  if (i == -1) {
-    return 0;
-  }
-  return lgrp_spaces()->at(i)->space()->used_in_bytes();
+size_t MutableNUMASpace::tlab_used() const {
+  return lgrp_space_for_current_thread()->space()->used_in_bytes();
 }
 
-
-size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *thr) const {
-  // Please see the comments for tlab_capacity().
-  guarantee(thr != nullptr, "No thread");
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1) {
-    if (lgrp_spaces()->length() > 0) {
-      return free_in_bytes() / lgrp_spaces()->length();
-    } else {
-      assert(false, "There should be at least one locality group");
-      return 0;
-    }
-  }
-  int i = lgrp_space_index(lgrp_id);
-  if (i == -1) {
-    return 0;
-  }
-  return lgrp_spaces()->at(i)->space()->free_in_bytes();
+size_t MutableNUMASpace::unsafe_max_tlab_alloc() const {
+  return lgrp_space_for_current_thread()->space()->free_in_bytes();
 }
 
 // Bias region towards the first-touching lgrp. Set the right page sizes.
@@ -528,32 +481,8 @@ void MutableNUMASpace::clear(bool mangle_space) {
   }
 }
 
-/*
-   Linux supports static memory binding, therefore the most part of the
-   logic dealing with the possible invalid page allocation is effectively
-   disabled. Besides there is no notion of the home node in Linux. A
-   thread is allowed to migrate freely. Although the scheduler is rather
-   reluctant to move threads between the nodes. We check for the current
-   node every allocation. And with a high probability a thread stays on
-   the same node for some time allowing local access to recently allocated
-   objects.
- */
-
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
-  Thread* thr = Thread::current();
-  int lgrp_id = thr->lgrp_id();
-  if (lgrp_id == -1 || !os::numa_has_group_homing()) {
-    lgrp_id = os::numa_get_group_id();
-    thr->set_lgrp_id(lgrp_id);
-  }
-
-  int i = lgrp_space_index(lgrp_id);
-  // It is possible that a new CPU has been hotplugged and
-  // we haven't reshaped the space accordingly.
-  if (i == -1) {
-    i = os::random() % lgrp_spaces()->length();
-  }
-  LGRPSpace *ls = lgrp_spaces()->at(i);
+  LGRPSpace *ls = lgrp_space_for_current_thread();
   MutableSpace *s = ls->space();
   HeapWord *p = s->cas_allocate(size);
   if (p != nullptr) {

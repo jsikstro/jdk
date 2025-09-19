@@ -152,7 +152,7 @@ class MutableNUMASpace : public MutableSpace {
   void select_tails(MemRegion new_region, MemRegion intersection,
                     MemRegion* bottom_region, MemRegion *top_region);
 
-  int lgrp_space_index(int lgrp_id) const;
+  LGRPSpace* lgrp_space_for_current_thread() const;
 
 public:
   GrowableArray<LGRPSpace*>* lgrp_spaces() const     { return _lgrp_spaces;       }
@@ -178,9 +178,9 @@ public:
   virtual size_t used_in_words() const;
   virtual size_t free_in_words() const;
 
-  virtual size_t tlab_capacity(Thread* thr) const;
-  virtual size_t tlab_used(Thread* thr) const;
-  virtual size_t unsafe_max_tlab_alloc(Thread* thr) const;
+  virtual size_t tlab_capacity() const;
+  virtual size_t tlab_used() const;
+  virtual size_t unsafe_max_tlab_alloc() const;
 
   // Allocation (return null if full)
   virtual HeapWord* cas_allocate(size_t word_size);

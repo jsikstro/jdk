@@ -152,7 +152,7 @@ class MutableNUMASpace : public MutableSpace {
   void select_tails(MemRegion new_region, MemRegion intersection,
                     MemRegion* bottom_region, MemRegion *top_region);
 
-  int lgrp_space_index_for_current_thread() const;
+  LGRPSpace* lgrp_space_for_current_thread() const;
 
 public:
   GrowableArray<LGRPSpace*>* lgrp_spaces() const     { return _lgrp_spaces;       }

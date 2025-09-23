@@ -77,7 +77,7 @@ void ThreadLocalAllocBuffer::accumulate_and_reset_statistics(ThreadLocalAllocSta
   size_t used     = Universe::heap()->tlab_used(thread());
 
   _gc_waste += (unsigned)remaining();
-  size_t total_allocated = thr->allocated_bytes();
+  size_t total_allocated = thread()->allocated_bytes();
   size_t allocated_since_last_gc = total_allocated - _allocated_before_last_gc;
   _allocated_before_last_gc = total_allocated;
 

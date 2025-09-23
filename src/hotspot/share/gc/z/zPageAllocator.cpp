@@ -648,8 +648,6 @@ ZPartition::ZPartition(uint32_t numa_id,
     _mem_worker(numa_id, this),
     _min_capacity(ZNUMA::calculate_share(numa_id, min_capacity)),
     _static_max_capacity(ZNUMA::calculate_share(numa_id, static_max_capacity)),
-    _committed(0),
-    _observed_max_committed(0),
     _capacity(0),
     _claimed(0),
     _used(0),
@@ -669,22 +667,6 @@ size_t ZPartition::static_max_capacity() const {
 
 size_t ZPartition::capacity() const {
   return AtomicAccess::load(&_capacity);
-}
-
-void ZPartition::increase_committed(size_t increment, bool commit_failed) {
-  _committed += increment;
-
-  if (commit_failed) {
-    // Commit failed, reset max
-    _observed_max_committed = _committed;
-  } else if (_committed > _observed_max_committed) {
-    // Commit successful update max
-    _observed_max_committed = _committed;
-  }
-}
-
-void ZPartition::decrease_committed(size_t decrement) {
-  _committed -= decrement;
 }
 
 const ZUncommitter& ZPartition::uncommitter() const {
@@ -731,12 +713,8 @@ size_t ZPartition::available(ZPageAllocationAttempt attempt, size_t limit) const
     return available(limit);
   }
 
-  if (attempt == ZPageAllocationAttempt::retry) {
+  if (attempt == ZPageAllocationAttempt::retry || attempt == ZPageAllocationAttempt::stall) {
     return available_from_cache(limit);
-  }
-
-  if (attempt == ZPageAllocationAttempt::stall) {
-    return available_from_observed_max_committed(limit);
   }
 
   ShouldNotReachHere();
@@ -765,28 +743,13 @@ size_t ZPartition::available_from_cache(size_t limit) const {
   return MIN2(available, cached);
 }
 
-size_t ZPartition::available_from_observed_max_committed(size_t limit) const {
-  const size_t unavailable = _used + _claimed;
-  const size_t available_observed_max_committed = _observed_max_committed > unavailable
-      ? _observed_max_committed - unavailable : 0;
-  const size_t available = ZPartition::available(limit);
-
-  return MIN2(available, available_observed_max_committed);
-}
-
 size_t ZPartition::increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit) {
   if (attempt == ZPageAllocationAttempt::initial) {
     return increase_capacity(size, limit);
   }
 
-  if (attempt == ZPageAllocationAttempt::retry) {
+  if (attempt == ZPageAllocationAttempt::retry || attempt == ZPageAllocationAttempt::stall) {
     return 0;
-  }
-
-  if (attempt == ZPageAllocationAttempt::stall) {
-    assert(available_from_observed_max_committed(limit) >= available_from_cache(limit), "must be");
-    const size_t available = available_from_observed_max_committed(limit) - available_from_cache(limit);
-    return increase_capacity(MIN2(size, available), limit);
   }
 
   ShouldNotReachHere();
@@ -1069,13 +1032,6 @@ size_t ZPartition::commit_physical(const ZVirtualMemory& vmem) {
   // Commit physical memory
   const size_t committed =  manager.commit(vmem, _numa_id);
 
-  // Keep track of the committed memory
-  {
-    ZLocker<ZLock> locker(lock());
-    const bool commit_failed = committed != vmem.size();
-    increase_committed(committed, commit_failed);
-  }
-
   return committed;
 }
 
@@ -1087,12 +1043,6 @@ size_t ZPartition::uncommit_physical(const ZVirtualMemory& vmem) {
 
   // Uncommit physical memory
   const size_t uncommitted = manager.uncommit(vmem);
-
-  // Keep track of the committed memory
-  {
-    ZLocker<ZLock> locker(lock());
-    decrease_committed(uncommitted);
-  }
 
   return uncommitted;
 }

@@ -69,8 +69,6 @@ private:
   ZMemoryWorker         _mem_worker;
   const size_t          _min_capacity;
   const size_t          _static_max_capacity;
-  size_t                _committed;
-  size_t                _observed_max_committed;
   volatile size_t       _capacity;
   volatile size_t       _claimed;
   size_t                _used;
@@ -100,9 +98,6 @@ public:
   size_t static_max_capacity() const;
   size_t capacity() const;
 
-  void increase_committed(size_t increment, bool commit_failed);
-  void decrease_committed(size_t decrement);
-
   const ZUncommitter& uncommitter() const;
   ZUncommitter& uncommitter();
 
@@ -115,7 +110,6 @@ public:
   size_t available(ZPageAllocationAttempt attempt, size_t limit) const;
   size_t available_from_increase_capacity(size_t limit) const;
   size_t available_from_cache(size_t limit) const;
-  size_t available_from_observed_max_committed(size_t limit) const;
 
   size_t increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit);
   size_t increase_capacity(size_t size, size_t limit);

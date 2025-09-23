@@ -73,9 +73,8 @@ size_t ThreadLocalAllocBuffer::remaining() {
 }
 
 void ThreadLocalAllocBuffer::accumulate_and_reset_statistics(ThreadLocalAllocStats* stats) {
-  Thread* thr     = thread();
-  size_t capacity = Universe::heap()->tlab_capacity(thr);
-  size_t used     = Universe::heap()->tlab_used(thr);
+  size_t capacity = Universe::heap()->tlab_capacity(thread());
+  size_t used     = Universe::heap()->tlab_used(thread());
 
   _gc_waste += (unsigned)remaining();
   size_t total_allocated = thr->allocated_bytes();
@@ -156,9 +155,10 @@ void ThreadLocalAllocBuffer::resize() {
 
   size_t aligned_new_size = align_object_size(new_size);
 
+  Thread *thr = thread();
   log_trace(gc, tlab)("TLAB new size: thread: " PTR_FORMAT " [id: %2d]"
                       " refills %d  alloc: %8.6f desired_size: %zu -> %zu",
-                      p2i(thread()), thread()->osthread()->thread_id(),
+                      p2i(thr), thr->osthread()->thread_id(),
                       _target_refills, _allocation_fraction.average(), desired_size(), aligned_new_size);
 
   set_desired_size(aligned_new_size);
@@ -308,7 +308,7 @@ void ThreadLocalAllocBuffer::print_stats(const char* tag) {
 
 Thread* ThreadLocalAllocBuffer::thread() {
   ZTraceThreadDebug event("thread()");
-  Thread* thr = (Thread*)(((char*)this) + in_bytes(start_offset()) - in_bytes(Thread::tlab_start_offset()));
+  Thread* thr = Thread::current();
   return thr;
 }
 

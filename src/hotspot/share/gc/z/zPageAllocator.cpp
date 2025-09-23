@@ -24,7 +24,7 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.inline.hpp"
@@ -1556,13 +1556,13 @@ size_t ZPageAllocator::dynamic_max_capacity() const {
     return _static_max_capacity;
   }
 
-  const size_t max = align_down(size_t(double(os::physical_memory()) * (1.0 - ZMemoryCriticalThreshold)), ZGranuleSize);
+  const size_t max = align_down(ZAdaptiveHeap::dynamic_max_memory(), ZGranuleSize);
   return MAX2(max, _min_capacity);
 }
 
 size_t ZPageAllocator::current_max_capacity() const {
-  if (ZAdaptiveHeap::explicit_max_capacity()) {
-    // With an explicit max capacity we use that heap size
+  if (!ZAdaptiveHeap::can_adapt()) {
+    // When not adapting use supplied max capacity
     return _static_max_capacity;
   }
 

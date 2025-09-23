@@ -22,7 +22,7 @@
  */
 
 #include "gc/shared/gc_globals.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zDirector.hpp"
 #include "gc/z/zDriver.hpp"
@@ -231,7 +231,7 @@ static ZDriverRequest rule_soft_minor_allocation_rate_dynamic(const ZDirectorSta
 }
 
 static size_t heuristic_hard_capacity(const ZDirectorStats& stats) {
-  if (ZAdaptiveHeap::explicit_max_capacity()) {
+  if (!ZAdaptiveHeap::can_adapt()) {
     return stats._heap._current_max_capacity;
   }
 
@@ -437,8 +437,9 @@ static bool rule_major_warmup(const ZDirectorStats& stats) {
   // duration, which is needed by the other rules.
   const size_t heuristic_max_capacity = stats._heap._heuristic_max_capacity;
   const size_t used = stats._heap._used;
-  const double used_threshold_percent = ZAdaptiveHeap::explicit_max_capacity() ? ((stats._old_stats._cycle._nwarmup_cycles + 1) * 0.1)
-                                                                               : 0.75;
+  const double used_threshold_percent = ZAdaptiveHeap::can_adapt()
+      ? 0.75
+      : ((stats._old_stats._cycle._nwarmup_cycles + 1) * 0.1);
   const size_t used_threshold = (size_t)(heuristic_max_capacity * used_threshold_percent);
 
   log_debug(gc, director)("Rule Major: Warmup %.0f%%, Used: %zuMB, UsedThreshold: %zuMB",

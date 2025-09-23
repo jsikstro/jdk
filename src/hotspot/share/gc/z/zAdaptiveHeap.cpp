@@ -23,7 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcLogPrecious.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
@@ -49,11 +49,6 @@ ZAdaptiveHeap::ZGenerationOverhead ZAdaptiveHeap::_young_data;
 ZAdaptiveHeap::ZGenerationOverhead ZAdaptiveHeap::_old_data;
 
 static ZLock* _stat_lock;
-
-bool ZAdaptiveHeap::can_adapt() {
-  precond(_initialized);
-  return _can_adapt;
-}
 
 void ZAdaptiveHeap::initialize(bool explicit_max_capacity, bool can_adapt) {
   precond(!_initialized);
@@ -502,7 +497,7 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
 
   const uint64_t explicit_delay = free_heap / M * uint64_t(SoftRefLRUPolicyMSPerMB);
 
-  if (explicit_max_capacity()) {
+  if (!can_adapt()) {
     // Use the good old policy we all know and love so much when automatic heap
     // sizing is not in use.
     return explicit_delay;
@@ -604,11 +599,12 @@ void ZAdaptiveHeap::print() {
   const char* status;
   if (!can_adapt()) {
     status = "Manual";
-  } else if (explicit_max_capacity() ||
-             FLAG_IS_CMDLINE(MinHeapSize)) {
-    status = "Bounded Automatic";
   } else {
-    status = "Automatic";
+    if (explicit_max_capacity() || FLAG_IS_CMDLINE(MinHeapSize)) {
+      status = "Bounded Automatic";
+    } else {
+      status = "Automatic";
+    }
   }
   log_info_p(gc, init)("Heap Sizing: %s", status);
 }

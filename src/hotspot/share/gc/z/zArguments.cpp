@@ -23,7 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcArguments.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zArguments.hpp"
 #include "gc/z/zCollectedHeap.hpp"
@@ -138,7 +138,7 @@ void ZArguments::set_heap_size() {
                                        FLAG_IS_CMDLINE(MaxRAMPercentage);
 
   const bool pressure_was_zero = AtomicAccess::load(&ZGCPressure) == 0.0;
-  const bool ahs_explicitly_disabled = pressure_was_zero;
+  const bool ahs_explicitly_disabled = pressure_was_zero || (!ZAdaptWithExplicitMaxCapacity && explicit_max_heap_size);
 
   if (ahs_explicitly_disabled) {
     // Let the shared code setup the set the heap size

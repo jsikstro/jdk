@@ -25,7 +25,7 @@
 #include "gc/shared/referencePolicy.hpp"
 #include "gc/shared/referenceProcessorStats.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zHeap.inline.hpp"

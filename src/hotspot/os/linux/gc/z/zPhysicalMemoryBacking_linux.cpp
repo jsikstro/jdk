@@ -22,7 +22,7 @@
  */
 
 #include "gc/shared/gcLogPrecious.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zErrno.hpp"

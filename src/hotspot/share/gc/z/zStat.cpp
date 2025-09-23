@@ -23,7 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAbort.inline.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zCPU.inline.hpp"
 #include "gc/z/zDirector.hpp"
@@ -673,8 +673,7 @@ void ZStatPhaseCollection::register_start(ConcurrentGCTimer* timer, const Ticks&
   ZCollectedHeap::heap()->trace_heap_before_gc(jfr_tracer());
 
   set_used_at_start(ZHeap::heap()->used());
-  const size_t max = ZAdaptiveHeap::explicit_max_capacity() ? ZHeap::heap()->static_max_capacity()
-                                                            : ZHeap::heap()->heuristic_max_capacity();
+  const size_t max = ZHeap::heap()->heuristic_max_capacity();
   set_max_at_start(max);
 
   log_info(gc)("%s (%s)", name(), GCCause::to_string(cause));
@@ -1896,10 +1895,6 @@ size_t ZStatHeap::used_at_collection_start() const {
 }
 
 size_t ZStatHeap::max_at_collection_start() const {
-  if (ZAdaptiveHeap::explicit_max_capacity()) {
-    return _at_initialize.max_capacity;
-  }
-
   return _at_collection_start.heuristic_max_capacity;
 }
 

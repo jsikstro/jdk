@@ -22,7 +22,7 @@
  */
 
 #include "gc/shared/gc_globals.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMemoryWorker.hpp"
@@ -99,21 +99,17 @@ bool ZMemoryWorker::should_commit(size_t granule, size_t capacity, size_t target
 
   const size_t new_capacity = capacity + granule;
 
-  if (!ZAdaptiveHeap::explicit_max_capacity()) {
-    // Be more mindful about increasing capacity with automatic heap sizing on
+  if (ZAdaptiveHeap::is_memory_pressure_high(metrics)) {
+    // When the pressure is "high", we resort to laziness for committing to ensure that we
+    // are not stepping off a cliff when the memory isn't needed.
+    return false;
+  }
 
-    if (ZAdaptiveHeap::is_memory_pressure_high(metrics)) {
-      // When the pressure is "high", we resort to laziness for committing to ensure that we
-      // are not stepping off a cliff when the memory isn't needed.
-      return false;
-    }
-
-    if (ZAdaptiveHeap::is_memory_pressure_concerning(metrics) &&
-        new_capacity > ZHeap::heap()->heuristic_max_capacity()) {
-      // When memory pressure gets concerning, we don't eagerly commit *past* the heuristic
-      // max heap size, because we might not need it and we want to avoid a ping pong situation.
-      return false;
-    }
+  if (ZAdaptiveHeap::is_memory_pressure_concerning(metrics) &&
+      new_capacity > ZHeap::heap()->heuristic_max_capacity()) {
+    // When memory pressure gets concerning, we don't eagerly commit *past* the heuristic
+    // max heap size, because we might not need it and we want to avoid a ping pong situation.
+    return false;
   }
 
   return new_capacity <= target_capacity;

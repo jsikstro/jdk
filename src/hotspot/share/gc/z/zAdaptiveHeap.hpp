@@ -92,7 +92,7 @@ public:
   static bool is_memory_pressure_high(const ZMemoryPressureMetrics& metrics);
   static bool is_memory_pressure_critical(const ZMemoryPressureMetrics& metrics);
 
-  static bool explicit_max_capacity() { return _explicit_max_capacity; }
+  static bool explicit_max_capacity();
   static bool can_adapt();
   static size_t current_max_capacity(size_t capacity, size_t dynamic_max_capacity);
 

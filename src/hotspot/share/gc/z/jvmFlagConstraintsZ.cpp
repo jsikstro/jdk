@@ -24,7 +24,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/jvmFlagConstraintsZ.hpp"
-#include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 
 JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {

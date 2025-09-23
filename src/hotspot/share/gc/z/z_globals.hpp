@@ -122,6 +122,9 @@
   product(bool, ZMemoryHeating, true, DIAGNOSTIC,                           \
           "Use concurrent memory worker(s) to optimize committed memory")   \
                                                                             \
+  product(bool, ZAdaptWithExplicitMaxCapacity, true,                        \
+          "REMOVE ME")                                                      \
+                                                                            \
   develop(bool, ZVerifyOops, false,                                         \
           "Verify accessed oops")                                           \
                                                                             \

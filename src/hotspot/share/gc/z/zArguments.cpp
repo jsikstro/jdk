@@ -36,6 +36,7 @@
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
 #include "runtime/os.hpp"
+#include "utilities/globalDefinitions.hpp"
 #ifdef LINUX
 #include "os_linux.hpp"
 #endif
@@ -130,42 +131,54 @@ void ZArguments::select_max_gc_threads() {
 }
 
 void ZArguments::set_heap_size() {
-  const size_t default_min_heap_size_bytes = 2 * M;
-  const double default_max_heap_size_percent = (1.0 - ZMemoryCriticalThreshold) * 100.0;
-
+  // We purposely do not care about MinRAMPercentage as adaptive heap sizing
+  // will use up to the whole machine, so even if MinRAMPercentage is set to
+  // 100%, we will still satisfy it.
   const bool explicit_max_heap_size =  FLAG_IS_CMDLINE(MaxHeapSize) ||
                                        FLAG_IS_CMDLINE(MaxRAMPercentage);
-  const bool explicit_min_heap_size =  FLAG_IS_CMDLINE(MinHeapSize);
-  const bool explicit_init_heap_size = FLAG_IS_CMDLINE(InitialHeapSize) ||
-                                       FLAG_IS_CMDLINE(InitialRAMPercentage);
 
-  const bool ahs_explicitly_disabled = AtomicAccess::load(&ZGCPressure) == 0.0;
+  const bool pressure_was_zero = AtomicAccess::load(&ZGCPressure) == 0.0;
+  const bool ahs_explicitly_disabled = pressure_was_zero;
 
-  if (!ahs_explicitly_disabled) {
-    // If automatic heap sizing is not explicitly turned off, adjust the default
-    // heap ergonomics to be less constraining; the constraints are dynamic.
-    if (!explicit_max_heap_size) {
-      FLAG_SET_ERGO(MaxRAMPercentage, default_max_heap_size_percent);
+  if (ahs_explicitly_disabled) {
+    // Let the shared code setup the set the heap size
+    GCArguments::set_heap_size();
+  } else {
+    // When ahs is not explicitly disabled we set the heap size ourselves
+    assert(!FLAG_IS_ERGO(InitialHeapSize), "Who set my heap size ergo?");
+    assert(!FLAG_IS_ERGO(MaxHeapSize), "Who set my heap size ergo?");
+    assert(!FLAG_IS_ERGO(MaxRAM), "Who set my heap size ergo?");
+    assert(!FLAG_IS_ERGO(MaxRAMPercentage), "Who set my heap size ergo?");
+    assert(!FLAG_IS_ERGO(MinHeapSize), "Who set my heap size ergo?");
+    assert(!FLAG_IS_ERGO(MinRAMPercentage), "Who set my heap size ergo?");
+
+    if (!FLAG_IS_DEFAULT(ErgoHeapSizeLimit)) {
+      log_warning(gc, heap, init)("ZGC does not use ErgoHeapSizeLimit, the value is ignored");
     }
-    if (!explicit_min_heap_size) {
-      FLAG_SET_ERGO(MinHeapSize, default_min_heap_size_bytes);
+    if (!FLAG_IS_DEFAULT(HeapBaseMinAddress)) {
+      log_warning(gc, heap, init)("ZGC does not use HeapBaseMinAddress, the value is ignored");
     }
+    if (!FLAG_IS_DEFAULT(MaxVirtMemFraction)) {
+      log_warning(gc, heap, init)("ZGC does not use MaxVirtMemFraction, the value is ignored");
+    }
+
+    FLAG_SET_ERGO_IF_DEFAULT(MaxRAM, ZAdaptiveHeap::dynamic_max_memory());
+    FLAG_SET_ERGO_IF_DEFAULT(MaxRAMPercentage, 100.);
+    FLAG_SET_ERGO_IF_DEFAULT(MinHeapSize, 2 * M);
+    FLAG_SET_ERGO_IF_DEFAULT(MaxHeapSize, MAX2((size_t)(checked_cast<double>(MaxRAM) * (MaxRAMPercentage / 100.)), MinHeapSize));
+    const size_t initial_size = FLAG_IS_CMDLINE(InitialRAMPercentage)
+        ? (size_t)(checked_cast<double>(MaxRAM) * (InitialRAMPercentage / 100.))
+        : MinHeapSize;
+    FLAG_SET_ERGO_IF_DEFAULT(InitialHeapSize, clamp(initial_size, MinHeapSize, MaxHeapSize));
   }
-
-  // Let the shared code setup the set the heap size
-  GCArguments::set_heap_size();
 
   const bool can_adapt = !ahs_explicitly_disabled && MaxHeapSize != MinHeapSize;
 
-  if (can_adapt) {
-    if (!explicit_init_heap_size) {
-      FLAG_SET_ERGO(InitialHeapSize, MinHeapSize);
-    }
-  } else {
+  if (!can_adapt) {
     // After setting the heap size we may have ended up with a configuration
     // which we cannot adapt.
 
-    if (!ahs_explicitly_disabled) {
+    if (!pressure_was_zero) {
       if (FLAG_IS_CMDLINE(ZGCPressure)) {
         log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
                         "Adaptive heap sizing is not available.");

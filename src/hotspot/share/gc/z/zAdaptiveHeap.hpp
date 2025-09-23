@@ -96,6 +96,9 @@ public:
   static bool can_adapt();
   static size_t current_max_capacity(size_t capacity, size_t dynamic_max_capacity);
 
+  static size_t dynamic_max_memory();
+  static size_t static_max_memory();
+
   static void print();
 };
 

@@ -50,6 +50,7 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/os.hpp"
+#include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
 static const ZStatCounter ZCounterUndoPageAllocation("Memory", "Undo Page Allocation", ZStatUnitOpsPerSecond);
@@ -65,18 +66,8 @@ static size_t compute_static_max_capacity() {
     return MaxHeapSize;
   }
 
-  // We might need to scale up to most of the underlying machine memory. Note that
-  // container sizes may change, so we need to prepare for sizing up larger than
-  // the container size reported by os::physical_memory.
-  size_t machine_memory;
-#ifdef LINUX
-  machine_memory = os::Linux::physical_memory();
-#else
-  machine_memory = os::physical_memory();
-#endif
-
-  const size_t max = align_down(size_t(machine_memory * (1.0 - ZMemoryCriticalThreshold)), ZGranuleSize);
-  return MAX2(max, MinHeapSize);
+  // We might need to scale up to most of the underlying machine memory.
+  return MAX2(align_up(ZAdaptiveHeap::static_max_memory(), ZGranuleSize), MinHeapSize);
 }
 
 ZHeap::ZHeap()

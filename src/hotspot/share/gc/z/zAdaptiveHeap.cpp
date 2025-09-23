@@ -587,6 +587,18 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_c
   return MIN2(max_available, dynamic_max_capacity);
 }
 
+size_t ZAdaptiveHeap::dynamic_max_memory() {
+  // Current os::physical_memory implementation delegates to container if memory
+  // limits are applied. TODO: Make this explicit when os APIs exits.
+  return os::physical_memory();
+}
+
+size_t ZAdaptiveHeap::static_max_memory() {
+  // os::Linux::physical_memory bypasses any container limits and looks at the
+  // underlying machines limits. TODO: Make this explicit when os APIs exits.
+  return os::LINUX_ONLY(Linux::)physical_memory();
+}
+
 void ZAdaptiveHeap::print() {
   precond(_initialized);
   const char* status;

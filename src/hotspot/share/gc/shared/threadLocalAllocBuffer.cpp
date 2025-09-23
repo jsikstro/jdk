@@ -35,6 +35,7 @@
 #include "runtime/perfData.hpp"
 #include "runtime/threadSMR.hpp"
 #include "utilities/copy.hpp"
+#include "gc/z/zTracer.inline.hpp"
 
 size_t       ThreadLocalAllocBuffer::_max_size = 0;
 int          ThreadLocalAllocBuffer::_reserve_for_allocation_prefetch = 0;
@@ -306,7 +307,9 @@ void ThreadLocalAllocBuffer::print_stats(const char* tag) {
 }
 
 Thread* ThreadLocalAllocBuffer::thread() {
-  return (Thread*)(((char*)this) + in_bytes(start_offset()) - in_bytes(Thread::tlab_start_offset()));
+  ZTraceThreadDebug event("thread()");
+  Thread* thr = (Thread*)(((char*)this) + in_bytes(start_offset()) - in_bytes(Thread::tlab_start_offset()));
+  return thr;
 }
 
 void ThreadLocalAllocBuffer::set_back_allocation_end() {

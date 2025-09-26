@@ -164,12 +164,12 @@ void ZArguments::set_heap_size() {
 
     FLAG_SET_ERGO_IF_DEFAULT(MaxRAM, ZAdaptiveHeap::dynamic_max_memory());
     FLAG_SET_ERGO_IF_DEFAULT(MaxRAMPercentage, 100.);
-    FLAG_SET_ERGO_IF_DEFAULT(MinHeapSize, 2 * M);
+    FLAG_SET_ERGO_IF_DEFAULT_OR_ZERO(MinHeapSize, 2 * M);
     FLAG_SET_ERGO_IF_DEFAULT(MaxHeapSize, MAX2((size_t)(checked_cast<double>(MaxRAM) * (MaxRAMPercentage / 100.)), MinHeapSize));
     const size_t initial_size = FLAG_IS_CMDLINE(InitialRAMPercentage)
         ? (size_t)(checked_cast<double>(MaxRAM) * (InitialRAMPercentage / 100.))
         : MinHeapSize;
-    FLAG_SET_ERGO_IF_DEFAULT(InitialHeapSize, clamp(initial_size, MinHeapSize, MaxHeapSize));
+    FLAG_SET_ERGO_IF_DEFAULT_OR_ZERO(InitialHeapSize, clamp(initial_size, MinHeapSize, MaxHeapSize));
   }
 
   const bool can_adapt = !ahs_explicitly_disabled && MaxHeapSize != MinHeapSize;

@@ -259,9 +259,11 @@ public class CollectionUsageThreshold {
         }
 
         private void fail(String msg) {
-            // reset the barrier to cause BrokenBarrierException to avoid hanging
-            barrier.reset();
-            throw new RuntimeException(msg);
+            System.out.println("Checker failed: " + msg);
+            // We cannot simply do a barrier.reset() here as the main thread may
+            // not yet have reached the barrier yet. For example in the case we
+            // got an unexpected GC.
+            System.exit(-1);
         }
     }
 }

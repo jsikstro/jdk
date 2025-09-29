@@ -553,34 +553,34 @@ void Universe::genesis(TRAPS) {
 
 void Universe::initialize_basic_type_mirrors(TRAPS) {
 #if INCLUDE_CDS_JAVA_HEAP
-    if (CDSConfig::is_using_archive() &&
-        ArchiveHeapLoader::is_in_use() &&
-        _basic_type_mirrors[T_INT].resolve() != nullptr) {
-      assert(ArchiveHeapLoader::can_use(), "Sanity");
+  if (CDSConfig::is_using_archive() &&
+      ArchiveHeapLoader::is_in_use() &&
+      _basic_type_mirrors[T_INT].resolve() != nullptr) {
+    assert(ArchiveHeapLoader::can_use(), "Sanity");
 
-      // check that all basic type mirrors are mapped also
-      for (int i = T_BOOLEAN; i < T_VOID+1; i++) {
-        if (!is_reference_type((BasicType)i)) {
-          oop m = _basic_type_mirrors[i].resolve();
-          assert(m != nullptr, "archived mirrors should not be null");
-        }
+    // check that all basic type mirrors are mapped also
+    for (int i = T_BOOLEAN; i < T_VOID+1; i++) {
+      if (!is_reference_type((BasicType)i)) {
+        oop m = _basic_type_mirrors[i].resolve();
+        assert(m != nullptr, "archived mirrors should not be null");
       }
-    } else
-      // _basic_type_mirrors[T_INT], etc, are null if archived heap is not mapped.
+    }
+  } else
+    // _basic_type_mirrors[T_INT], etc, are null if archived heap is not mapped.
 #endif
-    {
-      for (int i = T_BOOLEAN; i < T_VOID+1; i++) {
-        BasicType bt = (BasicType)i;
-        if (!is_reference_type(bt)) {
-          oop m = java_lang_Class::create_basic_type_mirror(type2name(bt), bt, CHECK);
-          _basic_type_mirrors[i] = OopHandle(vm_global(), m);
-        }
-        CDS_JAVA_HEAP_ONLY(_archived_basic_type_mirror_indices[i] = -1);
+  {
+    for (int i = T_BOOLEAN; i < T_VOID+1; i++) {
+      BasicType bt = (BasicType)i;
+      if (!is_reference_type(bt)) {
+        oop m = java_lang_Class::create_basic_type_mirror(type2name(bt), bt, CHECK);
+        _basic_type_mirrors[i] = OopHandle(vm_global(), m);
       }
+      CDS_JAVA_HEAP_ONLY(_archived_basic_type_mirror_indices[i] = -1);
     }
-    if (CDSConfig::is_dumping_heap()) {
-      HeapShared::init_scratch_objects_for_basic_type_mirrors(CHECK);
-    }
+  }
+  if (CDSConfig::is_dumping_heap()) {
+    HeapShared::init_scratch_objects_for_basic_type_mirrors(CHECK);
+  }
 }
 
 void Universe::fixup_mirrors(TRAPS) {

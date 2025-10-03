@@ -565,7 +565,7 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
 
 size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_capacity) {
   precond(_initialized);
-  size_t used_memory = 0;
+  physical_memory_size_type used_memory = 0;
   if (!os::used_memory(used_memory)) {
     // TODO: Handle os::used_memory being unavailable.
   }

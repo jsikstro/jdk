@@ -66,8 +66,10 @@ ZWorkers::ZWorkers(ZGenerationId id, ZStatWorkers* stats)
 
   if (UseNUMA) {
     const uint32_t num_nodes = ZNUMA::count();
+    uint32_t current_worker_id = 0;
     _workers.threads_do_f([&](WorkerThread* worker) {
-        os::numa_set_thread_affinity(worker, (int)(worker->worker_id() % num_nodes));
+      os::numa_set_thread_affinity(worker, (int)(current_worker_id % num_nodes));
+      current_worker_id++;
     });
   }
 }

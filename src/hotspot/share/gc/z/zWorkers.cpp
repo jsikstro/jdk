@@ -65,10 +65,15 @@ ZWorkers::ZWorkers(ZGenerationId id, ZStatWorkers* stats)
   }
 
   if (UseNUMA) {
+    // To get better NUMA node coverage, the workers' affinity is striped
+    // to specific NUMA nodes. When tasks are using at least as many workers
+    // as there are NUMA nodes, we can guarantee that we have at least one
+    // thread running on a CPU associated with each NUMA node.
     const uint32_t num_nodes = ZNUMA::count();
     uint32_t current_worker_id = 0;
+
     _workers.threads_do_f([&](WorkerThread* worker) {
-      os::numa_set_thread_affinity(worker, (int)(current_worker_id % num_nodes));
+      os::numa_set_thread_affinity(worker, ZNUMA::numa_id_to_node(current_worker_id % num_nodes));
       current_worker_id++;
     });
   }

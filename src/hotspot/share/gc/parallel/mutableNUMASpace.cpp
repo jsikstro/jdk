@@ -104,44 +104,42 @@ void MutableNUMASpace::ensure_parsability() {
 
 size_t MutableNUMASpace::used_in_words() const {
   size_t s = 0;
-  for (int i = 0; i < lgrp_spaces()->length(); i++) {
-    s += lgrp_spaces()->at(i)->space()->used_in_words();
+  for (LGRPSpace* ls : *lgrp_spaces()) {
+    s += ls->space()->used_in_words();
   }
   return s;
 }
 
 size_t MutableNUMASpace::free_in_words() const {
   size_t s = 0;
-  for (int i = 0; i < lgrp_spaces()->length(); i++) {
-    s += lgrp_spaces()->at(i)->space()->free_in_words();
+  for (LGRPSpace* ls : *lgrp_spaces()) {
+    s += ls->space()->free_in_words();
   }
   return s;
 }
 
-MutableNUMASpace::LGRPSpace *MutableNUMASpace::lgrp_space_for_thread(Thread* thr) const {
-  guarantee(thr != nullptr, "No thread");
-
-  int lgrp_id = thr->lgrp_id();
-  assert(lgrp_id != -1, "lgrp_id must be set during thread creation");
-
-  int lgrp_spaces_index = lgrp_spaces()->find_if([&](LGRPSpace* space) {
-    return space->lgrp_id() == (uint)lgrp_id;
-  });
-
-  assert(lgrp_spaces_index != -1, "must have created spaces for all lgrp_ids");
-  return lgrp_spaces()->at(lgrp_spaces_index);
+size_t MutableNUMASpace::tlab_capacity(Thread *ignored) const {
+  size_t s = 0;
+  for (LGRPSpace* ls : *lgrp_spaces()) {
+    s += ls->space()->capacity_in_bytes();
+  }
+  return s;
 }
 
-size_t MutableNUMASpace::tlab_capacity(Thread *thr) const {
-  return lgrp_space_for_thread(thr)->space()->capacity_in_bytes();
+size_t MutableNUMASpace::tlab_used(Thread *ignored) const {
+  size_t s = 0;
+  for (LGRPSpace* ls : *lgrp_spaces()) {
+    s += ls->space()->used_in_bytes();
+  }
+  return s;
 }
 
-size_t MutableNUMASpace::tlab_used(Thread *thr) const {
-  return lgrp_space_for_thread(thr)->space()->used_in_bytes();
-}
-
-size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *thr) const {
-  return lgrp_space_for_thread(thr)->space()->free_in_bytes();
+size_t MutableNUMASpace::unsafe_max_tlab_alloc(Thread *ignored) const {
+  size_t s = 0;
+  for (LGRPSpace* ls : *lgrp_spaces()) {
+    s += ls->space()->free_in_bytes();
+  }
+  return s;
 }
 
 // Bias region towards the first-touching lgrp. Set the right page sizes.
@@ -486,39 +484,47 @@ void MutableNUMASpace::clear(bool mangle_space) {
 }
 
 HeapWord* MutableNUMASpace::cas_allocate(size_t size) {
-  Thread *thr = Thread::current();
+  const int num_lgrp_spaces = lgrp_spaces()->length();
+  const int local_lgrp_id = os::numa_get_group_id();
+  int current_lgrp_space = local_lgrp_id;
 
-  // Update the locality group to match where the thread actually is.
-  thr->update_lgrp_id();
+  for (int i = 0; i < num_lgrp_spaces; i++) {
+    LGRPSpace* ls = lgrp_spaces()->at(current_lgrp_space);
+    MutableSpace* s = ls->space();
 
-  LGRPSpace *ls = lgrp_space_for_thread(thr);
-  MutableSpace *s = ls->space();
-  HeapWord *p = s->cas_allocate(size);
-  if (p != nullptr) {
-    size_t remainder = pointer_delta(s->end(), p + size);
-    if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
-      if (s->cas_deallocate(p, size)) {
-        // We were the last to allocate and created a fragment less than
-        // a minimal object.
-        p = nullptr;
-      } else {
-        guarantee(false, "Deallocation should always succeed");
+    HeapWord* p = s->cas_allocate(size);
+    if (p != nullptr) {
+      size_t remainder = pointer_delta(s->end(), p + size);
+      if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
+        if (s->cas_deallocate(p, size)) {
+          // We were the last to allocate and created a fragment less than
+          // a minimal object.
+          p = nullptr;
+        } else {
+          guarantee(false, "Deallocation should always succeed");
+        }
       }
     }
-  }
-  if (p != nullptr) {
+
+    // Failed to allocate on the current lgrp_space. Try the next one...
+    if (p == nullptr) {
+      ls->set_allocation_failed();
+      current_lgrp_space = (current_lgrp_space + 1) % num_lgrp_spaces;
+      continue;
+    }
+
     HeapWord* cur_top, *cur_chunk_top = p + size;
     while ((cur_top = top()) < cur_chunk_top) { // Keep _top updated.
       if (AtomicAccess::cmpxchg(top_addr(), cur_top, cur_chunk_top) == cur_top) {
         break;
       }
     }
+
+    // Successful allocation
+    return p;
   }
 
-  if (p == nullptr) {
-    ls->set_allocation_failed();
-  }
-  return p;
+  return nullptr;
 }
 
 void MutableNUMASpace::print_short_on(outputStream* st) const {

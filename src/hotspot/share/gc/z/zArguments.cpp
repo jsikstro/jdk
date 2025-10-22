@@ -134,8 +134,12 @@ void ZArguments::set_heap_size() {
   // We purposely do not care about MinRAMPercentage as adaptive heap sizing
   // will use up to the whole machine, so even if MinRAMPercentage is set to
   // 100%, we will still satisfy it.
-  const bool explicit_max_heap_size =  FLAG_IS_CMDLINE(MaxHeapSize) ||
-                                       FLAG_IS_CMDLINE(MaxRAMPercentage);
+
+  assert(!FLAG_IS_ERGO(MaxHeapSize), "Who set my heap size ergo?");
+  assert(!FLAG_IS_ERGO(MaxRAMPercentage), "Who set my heap size ergo?");
+
+  const bool explicit_max_heap_size =  !FLAG_IS_DEFAULT(MaxHeapSize) ||
+                                       !FLAG_IS_DEFAULT(MaxRAMPercentage);
 
   const bool pressure_was_zero = AtomicAccess::load(&ZGCPressure) == 0.0;
   const bool ahs_explicitly_disabled = pressure_was_zero || (!ZAdaptWithExplicitMaxCapacity && explicit_max_heap_size);
@@ -146,9 +150,7 @@ void ZArguments::set_heap_size() {
   } else {
     // When ahs is not explicitly disabled we set the heap size ourselves
     assert(!FLAG_IS_ERGO(InitialHeapSize), "Who set my heap size ergo?");
-    assert(!FLAG_IS_ERGO(MaxHeapSize), "Who set my heap size ergo?");
     assert(!FLAG_IS_ERGO(MaxRAM), "Who set my heap size ergo?");
-    assert(!FLAG_IS_ERGO(MaxRAMPercentage), "Who set my heap size ergo?");
     assert(!FLAG_IS_ERGO(MinHeapSize), "Who set my heap size ergo?");
     assert(!FLAG_IS_ERGO(MinRAMPercentage), "Who set my heap size ergo?");
 
@@ -163,10 +165,10 @@ void ZArguments::set_heap_size() {
     }
 
     FLAG_SET_ERGO_IF_DEFAULT(MaxRAM, ZAdaptiveHeap::dynamic_max_memory());
-    FLAG_SET_ERGO_IF_DEFAULT(MaxRAMPercentage, 100.);
-    FLAG_SET_ERGO_IF_DEFAULT_OR_ZERO(MinHeapSize, 2 * M);
+    FLAG_SET_ERGO_IF_DEFAULT(MaxRAMPercentage, ZAdaptiveHeap::DefaultMaxRAMPercentage);
+    FLAG_SET_ERGO_IF_DEFAULT_OR_ZERO(MinHeapSize, ZAdaptiveHeap::DefaultMinHeapSize);
     FLAG_SET_ERGO_IF_DEFAULT(MaxHeapSize, MAX2((size_t)(checked_cast<double>(MaxRAM) * (MaxRAMPercentage / 100.)), MinHeapSize));
-    const size_t initial_size = FLAG_IS_CMDLINE(InitialRAMPercentage)
+    const size_t initial_size = !FLAG_IS_DEFAULT(InitialRAMPercentage)
         ? (size_t)(checked_cast<double>(MaxRAM) * (InitialRAMPercentage / 100.))
         : MinHeapSize;
     FLAG_SET_ERGO_IF_DEFAULT_OR_ZERO(InitialHeapSize, clamp(initial_size, MinHeapSize, MaxHeapSize));

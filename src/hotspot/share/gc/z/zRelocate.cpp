@@ -1167,7 +1167,7 @@ public:
 
     const auto do_forwarding_one_from_iter = [&]() {
       ZForwarding* forwarding;
-      const uint32_t start_node = ZNUMA::id();
+      const uint32_t start_node = os::Linux::get_node_by_cpu(os::processor_id());
       uint32_t current_node = start_node;
 
       for (uint32_t i = 0; i < num_nodes; i++) {

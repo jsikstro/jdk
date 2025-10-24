@@ -2263,7 +2263,7 @@ WB_ENTRY(jboolean, WB_IsJVMCISupportedByGC(JNIEnv* env))
 WB_END
 
 static bool canWriteJavaHeapArchive() {
-  return !CDSConfig::are_vm_options_incompatible_with_dumping_heap();
+  return CDSConfig::are_vm_options_compatible_with_dumping_heap();
 }
 
 WB_ENTRY(jboolean, WB_CanWriteJavaHeapArchive(JNIEnv* env))

@@ -36,6 +36,7 @@
 #include "memory/universe.hpp"
 #include "prims/jvmtiAgentList.hpp"
 #include "runtime/arguments.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
 #include "runtime/vmThread.hpp"
@@ -885,19 +886,6 @@ const char* CDSConfig::type_of_archive_being_written() {
   }
 }
 
-// If an incompatible VM options is found, return a text message that explains why
-static const char* check_options_incompatible_with_dumping_heap() {
-#if INCLUDE_CDS_JAVA_HEAP
-  if (!UseCompressedClassPointers) {
-    return "UseCompressedClassPointers must be true";
-  }
-
-  return nullptr;
-#else
-  return "JVM not configured for writing Java heap objects";
-#endif
-}
-
 void CDSConfig::log_reasons_for_not_dumping_heap() {
   const char* reason;
 
@@ -906,10 +894,14 @@ void CDSConfig::log_reasons_for_not_dumping_heap() {
   if (_disable_heap_dumping) {
     reason = "Programmatically disabled";
   } else {
-    reason = check_options_incompatible_with_dumping_heap();
+#if INCLUDE_CDS_JAVA_HEAP
+    // This string should reflect the logic in are_vm_options_compatible_with_dumping_heap().
+    reason = "UseCompressedClassPointers must be true";
+#else
+    reason = "JVM not configured for writing Java heap objects";
+#endif
   }
 
-  assert(reason != nullptr, "sanity");
   aot_log_info(aot)("Archived java heap is not supported: %s", reason);
 }
 
@@ -949,13 +941,14 @@ bool CDSConfig::is_old_class_for_verifier(const InstanceKlass* ik) {
 }
 
 #if INCLUDE_CDS_JAVA_HEAP
-bool CDSConfig::are_vm_options_incompatible_with_dumping_heap() {
-  return check_options_incompatible_with_dumping_heap() != nullptr;
+bool CDSConfig::are_vm_options_compatible_with_dumping_heap() {
+  // Compressed class pointers must be enabled to dump the heap.
+  return UseCompressedClassPointers;
 }
 
 bool CDSConfig::is_dumping_heap() {
   if (!(is_dumping_classic_static_archive() || is_dumping_final_static_archive())
-      || are_vm_options_incompatible_with_dumping_heap()
+      || !are_vm_options_compatible_with_dumping_heap()
       || _disable_heap_dumping) {
     return false;
   }

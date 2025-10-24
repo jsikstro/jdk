@@ -181,7 +181,7 @@ public:
 
   // --- Archived java objects
 
-  static bool are_vm_options_incompatible_with_dumping_heap() NOT_CDS_JAVA_HEAP_RETURN_(true);
+  static bool are_vm_options_compatible_with_dumping_heap()  NOT_CDS_JAVA_HEAP_RETURN_(false);
   static void log_reasons_for_not_dumping_heap();
 
   static void disable_heap_dumping()                         { CDS_ONLY(_disable_heap_dumping = true); }

@@ -240,7 +240,6 @@ class os::Linux {
   typedef int (*numa_bitmask_clearbit_func_t)(struct bitmask *bmp, unsigned int n);
   typedef int (*numa_bitmask_equal_func_t)(struct bitmask *bmp1, struct bitmask *bmp2);
   typedef int (*numa_distance_func_t)(int node1, int node2);
-  typedef int (*numa_sched_getaffinity_func_t)(pid_t pid, struct bitmask* mask);
   typedef int (*numa_sched_setaffinity_func_t)(pid_t pid, struct bitmask* mask);
   typedef struct bitmask* (*numa_allocate_cpumask_func_t)(void);
 
@@ -263,12 +262,12 @@ class os::Linux {
   static numa_get_interleave_mask_func_t _numa_get_interleave_mask;
   static numa_move_pages_func_t _numa_move_pages;
   static numa_set_preferred_func_t _numa_set_preferred;
-  static numa_sched_getaffinity_func_t _numa_sched_getaffinity;
   static numa_sched_setaffinity_func_t _numa_sched_setaffinity;
   static numa_allocate_cpumask_func_t _numa_allocate_cpumask;
   static unsigned long* _numa_all_nodes;
   static struct bitmask* _numa_all_nodes_ptr;
   static struct bitmask* _numa_nodes_ptr;
+  static struct bitmask* _numa_all_cpus_ptr;
   static struct bitmask* _numa_interleave_bitmask;
   static struct bitmask* _numa_membind_bitmask;
   static struct bitmask* _numa_cpunodebind_bitmask;
@@ -295,10 +294,10 @@ class os::Linux {
   static void set_numa_all_nodes(unsigned long* ptr) { _numa_all_nodes = ptr; }
   static void set_numa_all_nodes_ptr(struct bitmask **ptr) { _numa_all_nodes_ptr = (ptr == nullptr ? nullptr : *ptr); }
   static void set_numa_nodes_ptr(struct bitmask **ptr) { _numa_nodes_ptr = (ptr == nullptr ? nullptr : *ptr); }
+  static void set_numa_all_cpus_ptr(struct bitmask **ptr) { _numa_all_cpus_ptr = (ptr == nullptr ? nullptr : *ptr); }
   static void set_numa_interleave_bitmask(struct bitmask* ptr)     { _numa_interleave_bitmask = ptr ;   }
   static void set_numa_membind_bitmask(struct bitmask* ptr)        { _numa_membind_bitmask = ptr ;      }
   static void set_numa_cpunodebind_bitmask(struct bitmask* ptr)        { _numa_cpunodebind_bitmask = ptr ;      }
-  static void set_numa_sched_getaffinity(numa_sched_getaffinity_func_t func) { _numa_sched_getaffinity = func; }
   static void set_numa_sched_setaffinity(numa_sched_setaffinity_func_t func) { _numa_sched_setaffinity = func; }
   static void set_numa_allocate_cpumask(numa_allocate_cpumask_func_t func) { _numa_allocate_cpumask = func; }
   static int sched_getcpu_syscall(void);

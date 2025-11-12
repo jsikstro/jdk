@@ -1100,6 +1100,8 @@ public:
 
   void object_iterate_parallel(ObjectClosure* cl, uint worker_id, G1HeapRegionClaimer* claimer);
 
+  bool supports_parallel_object_iteration() override;
+
   // Iterate over all objects, calling "cl.do_object" on each.
   void object_iterate(ObjectClosure* cl) override;
 
@@ -1319,8 +1321,6 @@ public:
 
   // WhiteBox testing support.
   bool supports_concurrent_gc_breakpoints() const override;
-
-  WorkerThreads* safepoint_workers() override { return _workers; }
 
   // The methods below are here for convenience and dispatch the
   // appropriate method depending on value of the given VerifyOption

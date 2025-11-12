@@ -2242,7 +2242,8 @@ class VM_HeapDumper : public VM_GC_Operation, public WorkerTask, public Unmounte
 
   volatile int            _dump_seq;
   // parallel heap dump support
-  uint                    _num_dumper_threads;
+  uint                    _requested_num_dumper_threads;
+  bool                    _dump_in_parallel;
   DumperController*       _dumper_controller;
   ParallelObjectIterator* _poi;
 
@@ -2286,7 +2287,13 @@ class VM_HeapDumper : public VM_GC_Operation, public WorkerTask, public Unmounte
     _frame_serial_num = 1;
 
     _dump_seq = VMDumperId;
-    _num_dumper_threads = num_dump_threads;
+    _requested_num_dumper_threads = num_dump_threads;
+
+    // We should attempt to dump in parallel using multiple threads if the current
+    // GC supports it and more than one thread has been requested.
+    _dump_in_parallel = Universe::heap()->supports_parallel_object_iteration() &&
+                        num_dump_threads > 1;
+
     _dumper_controller = nullptr;
     _poi = nullptr;
     if (oome) {
@@ -2317,9 +2324,9 @@ class VM_HeapDumper : public VM_GC_Operation, public WorkerTask, public Unmounte
     }
     delete _klass_map;
   }
-  int dump_seq()           { return _dump_seq; }
-  bool is_parallel_dump()  { return _num_dumper_threads > 1; }
-  void prepare_parallel_dump(WorkerThreads* workers);
+  int dump_seq()             { return _dump_seq; }
+  bool dumping_in_parallel() { return _dump_in_parallel; }
+  uint determine_num_workers();
 
   VMOp_Type type() const { return VMOp_HeapDumper; }
   virtual bool doit_prologue();
@@ -2362,21 +2369,19 @@ bool VM_HeapDumper::doit_prologue() {
   return VM_GC_Operation::doit_prologue();
 }
 
-void VM_HeapDumper::prepare_parallel_dump(WorkerThreads* workers) {
-  uint num_active_workers = workers != nullptr ? workers->active_workers() : 0;
-  uint num_requested_dump_threads = _num_dumper_threads;
-  // check if we can dump in parallel based on requested and active threads
-  if (num_active_workers <= 1 || num_requested_dump_threads <= 1) {
-    _num_dumper_threads = 1;
-  } else {
-    _num_dumper_threads = clamp(num_requested_dump_threads, 2U, num_active_workers);
+uint VM_HeapDumper::determine_num_workers() {
+  if (!dumping_in_parallel()) {
+    // Not dumping in parallel, only using one thread.
+    return 1;
   }
-  _dumper_controller = new (std::nothrow) DumperController(_num_dumper_threads);
-  bool can_parallel = _num_dumper_threads > 1;
-  log_info(heapdump)("Requested dump threads %u, active dump threads %u, "
-                     "actual dump threads %u, parallelism %s",
-                     num_requested_dump_threads, num_active_workers,
-                     _num_dumper_threads, can_parallel ? "true" : "false");
+
+  // Set up serviceability workers for parallel dump
+  ServiceabilityWorkers* workers = ServiceabilityWorkers::get_or_create_workers();
+
+  // Try to enable requested number of workers
+  workers->try_set_requested_workers(_requested_num_dumper_threads);
+
+  return workers->active_workers();
 }
 
 // The VM operation that dumps the heap. The dump consists of the following
@@ -2404,7 +2409,6 @@ void VM_HeapDumper::prepare_parallel_dump(WorkerThreads* workers) {
 // roots.
 
 void VM_HeapDumper::doit() {
-
   CollectedHeap* ch = Universe::heap();
 
   ch->ensure_parsability(false); // must happen, even if collection does
@@ -2418,15 +2422,19 @@ void VM_HeapDumper::doit() {
     }
   }
 
-  WorkerThreads* workers = ch->safepoint_workers();
-  prepare_parallel_dump(workers);
+  const uint num_workers = determine_num_workers();
+  _dumper_controller = new (std::nothrow) DumperController(num_workers);
 
-  if (!is_parallel_dump()) {
+  log_info(heapdump)("Dump threads %u, parallelism %s",
+                     num_workers, dumping_in_parallel() ? "yes" : "no");
+
+  if (!dumping_in_parallel()) {
     work(VMDumperId);
   } else {
-    ParallelObjectIterator poi(_num_dumper_threads);
+    ServiceabilityWorkers* workers = ServiceabilityWorkers::workers();
+    ParallelObjectIterator poi(workers->active_workers());
     _poi = &poi;
-    workers->run_task(this, _num_dumper_threads);
+    workers->run_task(this);
     _poi = nullptr;
   }
 }
@@ -2509,9 +2517,9 @@ void VM_HeapDumper::work(uint worker_id) {
     // The HPROF_GC_CLASS_DUMP and HPROF_GC_INSTANCE_DUMP are the vast bulk
     // of the heap dump.
 
-    TraceTime timer(is_parallel_dump() ? "Dump heap objects in parallel" : "Dump heap objects", TRACETIME_LOG(Info, heapdump));
+    TraceTime timer(should_dump_in_parallel() ? "Dump heap objects in parallel" : "Dump heap objects", TRACETIME_LOG(Info, heapdump));
     HeapObjectDumper obj_dumper(&segment_writer, this);
-    if (!is_parallel_dump()) {
+    if (!dumping_in_parallel()) {
       Universe::heap()->object_iterate(&obj_dumper);
     } else {
       // == Parallel dump
@@ -2613,7 +2621,7 @@ int HeapDumper::dump(const char* path, outputStream* out, int compression, bool 
     physical_memory_size_type free_memory = 0;
     // Return value ignored - defaulting to 0 on failure.
     (void)os::free_memory(free_memory);
-    julong max_threads = free_memory / (20 * M);
+    size_t max_threads = free_memory / (20 * M);
     if (num_dump_threads > max_threads) {
       num_dump_threads = MAX2<uint>(1, (uint)max_threads);
     }
@@ -2705,7 +2713,6 @@ HeapDumper::~HeapDumper() {
   }
   set_error(nullptr);
 }
-
 
 // returns the error string (resource allocated), or null
 char* HeapDumper::error_as_C_string() const {

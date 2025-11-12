@@ -63,6 +63,7 @@
 #include "services/diagnosticFramework.hpp"
 #include "services/heapDumper.hpp"
 #include "services/management.hpp"
+#include "services/serviceabilityWorkers.hpp"
 #include "services/writeableFlags.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/events.hpp"
@@ -487,7 +488,7 @@ HeapDumpDCmd::HeapDumpDCmd(outputStream* output, bool heap) :
 
 void HeapDumpDCmd::execute(DCmdSource source, TRAPS) {
   jlong level = -1; // -1 means no compression.
-  jlong parallel = HeapDumper::default_num_of_dump_threads();
+  uint parallel = ServiceabilityWorkers::heuristic_num_parallel_workers();
 
   if (_gzip.is_set()) {
     level = _gzip.value();
@@ -499,22 +500,21 @@ void HeapDumpDCmd::execute(DCmdSource source, TRAPS) {
   }
 
   if (_parallel.is_set()) {
-    parallel = _parallel.value();
-
-    if (parallel < 0) {
+    if (_parallel.value() < 0) {
       output()->print_cr("Invalid number of parallel dump threads.");
       return;
-    } else if (parallel == 0) {
+    } else if (_parallel.value() == 0) {
       // 0 implies to disable parallel heap dump, in such case, we use serial dump instead
       parallel = 1;
+    } else {
+      parallel = (uint)_parallel.value();
     }
   }
 
-  // Request a full GC before heap dump if _all is false
-  // This helps reduces the amount of unreachable objects in the dump
-  // and makes it easier to browse.
-  HeapDumper dumper(!_all.value() /* request GC if _all is false*/);
-  dumper.dump(_filename.value(), output(), (int) level, _overwrite.value(), (uint)parallel);
+  // Request a full GC before heap dump if _all is false. This reduces the
+  // number of unreachable objects in the dump and makes it easier to browse.
+  HeapDumper dumper(!_all.value() /* request GC if _all is false */);
+  dumper.dump(_filename.value(), output(), (int)level, _overwrite.value(), parallel);
 }
 
 ClassHistogramDCmd::ClassHistogramDCmd(outputStream* output, bool heap) :
@@ -539,8 +539,9 @@ void ClassHistogramDCmd::execute(DCmdSource source, TRAPS) {
     return;
   }
   uint parallel_thread_num = num == 0
-      ? MAX2<uint>(1, (uint)os::initial_active_processor_count() * 3 / 8)
-      : num;
+      ? ServiceabilityWorkers::heuristic_num_parallel_workers()
+      : (uint)num;
+
   VM_GC_HeapInspection heapop(output(),
                               !_all.value(), /* request full gc if false */
                               parallel_thread_num);

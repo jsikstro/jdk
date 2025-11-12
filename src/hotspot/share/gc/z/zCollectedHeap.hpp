@@ -28,7 +28,6 @@
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zInitialize.hpp"
-#include "gc/z/zRuntimeWorkers.hpp"
 #include "memory/metaspace.hpp"
 #include "services/memoryUsage.hpp"
 
@@ -48,7 +47,6 @@ private:
   ZDriverMajor*     _driver_major;
   ZDirector*        _director;
   ZStat*            _stat;
-  ZRuntimeWorkers   _runtime_workers;
 
   HeapWord* allocate_new_tlab(size_t min_size,
                               size_t requested_size,
@@ -92,6 +90,7 @@ public:
   GrowableArray<GCMemoryManager*> memory_managers() override;
   GrowableArray<MemoryPool*> memory_pools() override;
 
+  bool supports_parallel_object_iteration() override;
   void object_iterate(ObjectClosure* cl) override;
   ParallelObjectIteratorImpl* parallel_object_iterator(uint nworkers) override;
 
@@ -100,8 +99,6 @@ public:
   void register_nmethod(nmethod* nm) override;
   void unregister_nmethod(nmethod* nm) override;
   void verify_nmethod(nmethod* nmethod) override;
-
-  WorkerThreads* safepoint_workers() override;
 
   void gc_threads_do(ThreadClosure* tc) const override;
 

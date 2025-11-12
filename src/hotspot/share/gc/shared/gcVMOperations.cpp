@@ -39,6 +39,7 @@
 #include "runtime/init.hpp"
 #include "runtime/java.hpp"
 #include "runtime/mutexLocker.hpp"
+#include "services/serviceabilityWorkers.hpp"
 #include "utilities/dtrace.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/preserveException.hpp"
@@ -185,7 +186,9 @@ bool VM_GC_HeapInspection::collect() {
 }
 
 void VM_GC_HeapInspection::doit() {
-  Universe::heap()->ensure_parsability(false); // must happen, even if collection does
+  CollectedHeap* ch = Universe::heap();
+
+  ch->ensure_parsability(false); // must happen, even if collection does
                                                // not happen (e.g. due to GCLocker)
                                                // or _full_gc being false
   if (_full_gc) {
@@ -204,16 +207,20 @@ void VM_GC_HeapInspection::doit() {
     }
   }
   HeapInspection inspect;
-  WorkerThreads* workers = Universe::heap()->safepoint_workers();
-  if (workers != nullptr) {
-    // The GC provided a WorkerThreads to be used during a safepoint.
-    // Can't run with more threads than provided by the WorkerThreads.
-    const uint capped_parallel_thread_num = MIN2(_parallel_thread_num, workers->max_workers());
-    WithActiveWorkers with_active_workers(workers, capped_parallel_thread_num);
-    inspect.heap_inspection(_out, workers);
-  } else {
-    inspect.heap_inspection(_out, nullptr);
+  ServiceabilityWorkers* workers = nullptr;
+
+  const bool should_inspect_in_parallel =
+    ch->supports_parallel_object_iteration() && _parallel_thread_num > 1;
+
+  if (should_inspect_in_parallel) {
+    // Make sure the workers are created
+    workers = ServiceabilityWorkers::get_or_create_workers();
+
+    // Try to enable requested workers for inspection
+    workers->try_set_requested_workers(_parallel_thread_num);
   }
+
+  inspect.heap_inspection(_out, workers);
 }
 
 VM_CollectForMetadataAllocation::VM_CollectForMetadataAllocation(ClassLoaderData* loader_data,

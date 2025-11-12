@@ -52,15 +52,6 @@ void ZArguments::initialize_heap_flags_and_sizes() {
 }
 
 void ZArguments::select_max_gc_threads() {
-  // Select number of parallel threads
-  if (FLAG_IS_DEFAULT(ParallelGCThreads)) {
-    FLAG_SET_DEFAULT(ParallelGCThreads, ZHeuristics::nparallel_workers());
-  }
-
-  if (ParallelGCThreads == 0) {
-    vm_exit_during_initialization("The flag -XX:+UseZGC can not be combined with -XX:ParallelGCThreads=0");
-  }
-
   // The max number of concurrent threads we heuristically want for a generation
   uint max_nworkers_generation;
 

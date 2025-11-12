@@ -66,8 +66,7 @@ ZCollectedHeap::ZCollectedHeap()
     _driver_minor(new ZDriverMinor()),
     _driver_major(new ZDriverMajor()),
     _director(new ZDirector()),
-    _stat(new ZStat()),
-    _runtime_workers() {}
+    _stat(new ZStat()) {}
 
 CollectedHeap::Name ZCollectedHeap::kind() const {
   return CollectedHeap::Z;
@@ -264,6 +263,10 @@ GrowableArray<MemoryPool*> ZCollectedHeap::memory_pools() {
   return memory_pools;
 }
 
+bool ZCollectedHeap::supports_parallel_object_iteration() {
+  return true;
+}
+
 void ZCollectedHeap::object_iterate(ObjectClosure* cl) {
   _heap.object_iterate(cl, true /* visit_weaks */);
 }
@@ -307,17 +310,12 @@ void ZCollectedHeap::verify_nmethod(nmethod* nm) {
   // Does nothing
 }
 
-WorkerThreads* ZCollectedHeap::safepoint_workers() {
-  return _runtime_workers.workers();
-}
-
 void ZCollectedHeap::gc_threads_do(ThreadClosure* tc) const {
   tc->do_thread(_director);
   tc->do_thread(_driver_major);
   tc->do_thread(_driver_minor);
   tc->do_thread(_stat);
   _heap.threads_do(tc);
-  _runtime_workers.threads_do(tc);
 }
 
 VirtualSpaceSummary ZCollectedHeap::create_heap_space_summary() {

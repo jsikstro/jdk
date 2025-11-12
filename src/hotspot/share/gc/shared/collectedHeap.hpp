@@ -398,11 +398,19 @@ protected:
   virtual GrowableArray<GCMemoryManager*> memory_managers() = 0;
   virtual GrowableArray<MemoryPool*> memory_pools() = 0;
 
+  // Returns true if the GC supports parallel object iteration and is able
+  // to call and use parallel_object_iterator().
+  virtual bool supports_parallel_object_iteration() {
+    return false;
+  }
+
   // Iterate over all objects, calling "cl.do_object" on each.
   virtual void object_iterate(ObjectClosure* cl) = 0;
 
   virtual ParallelObjectIteratorImpl* parallel_object_iterator(uint thread_num) {
-    return nullptr;
+    // This should not be called for a GC that does not support parallel
+    // object iteration.
+    ShouldNotCallThis();
   }
 
   // Keep alive an object that was loaded with AS_NO_KEEPALIVE.
@@ -473,17 +481,6 @@ protected:
   // Return true if concurrent gc control via WhiteBox is supported by
   // this collector.  The default implementation returns false.
   virtual bool supports_concurrent_gc_breakpoints() const;
-
-  // Workers used in non-GC safepoints for parallel safepoint cleanup. If this
-  // method returns null, cleanup tasks are done serially in the VMThread. See
-  // `SafepointSynchronize::do_cleanup_tasks` for details.
-  // GCs using a GC worker thread pool inside GC safepoints may opt to share
-  // that pool with non-GC safepoints, avoiding creating extraneous threads.
-  // Such sharing is safe, because GC safepoints and non-GC safepoints never
-  // overlap. For example, `G1CollectedHeap::workers()` (for GC safepoints) and
-  // `G1CollectedHeap::safepoint_workers()` (for non-GC safepoints) return the
-  // same thread-pool.
-  virtual WorkerThreads* safepoint_workers() { return nullptr; }
 
   // Support for object pinning. This is used by JNI Get*Critical()
   // and Release*Critical() family of functions. The GC must guarantee

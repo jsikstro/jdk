@@ -219,6 +219,7 @@ public:
   size_t tlab_used() const override;
   size_t unsafe_max_tlab_alloc() const override;
 
+  bool supports_parallel_object_iteration() override;
   void object_iterate(ObjectClosure* cl) override;
   void object_iterate_parallel(ObjectClosure* cl, HeapBlockClaimer* claimer);
   ParallelObjectIteratorImpl* parallel_object_iterator(uint thread_num) override;
@@ -231,8 +232,6 @@ public:
   void print_heap_on(outputStream* st) const override;
   void print_gc_on(outputStream* st) const override;
   void gc_threads_do(ThreadClosure* tc) const override;
-
-  WorkerThreads* safepoint_workers() override { return &_workers; }
 
   PreGenGCValues get_pre_gc_values() const;
   void print_heap_change(const PreGenGCValues& pre_gc_values) const;

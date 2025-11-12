@@ -28,6 +28,7 @@
 #include "memory/allocation.hpp"
 #include "oops/oop.hpp"
 #include "runtime/os.hpp"
+#include "services/serviceabilityWorkers.hpp"
 
 class outputStream;
 
@@ -51,6 +52,7 @@ class HeapDumper : public StackObj {
 
   static void dump_heap(bool oome);
 
+
  public:
   HeapDumper(bool gc_before_heap_dump) :
     _error(nullptr), _gc_before_heap_dump(gc_before_heap_dump), _oome(false) { }
@@ -61,7 +63,7 @@ class HeapDumper : public StackObj {
   // additional info is written to out if not null.
   // compression >= 0 creates a gzipped file with the given compression level.
   // parallel_thread_num >= 0 indicates thread numbers of parallel object dump.
-  int dump(const char* path, outputStream* out = nullptr, int compression = -1, bool overwrite = false, uint parallel_thread_num = default_num_of_dump_threads());
+  int dump(const char* path, outputStream* out = nullptr, int compression = -1, bool overwrite = false, uint parallel_thread_num = ServiceabilityWorkers::heuristic_num_parallel_workers());
 
   // returns error message (resource allocated), or null if no error
   char* error_as_C_string() const;
@@ -69,11 +71,6 @@ class HeapDumper : public StackObj {
   static void dump_heap()    NOT_SERVICES_RETURN;
 
   static void dump_heap_from_oome()    NOT_SERVICES_RETURN;
-
-  // Parallel thread number for heap dump, initialize based on active processor count.
-  static uint default_num_of_dump_threads() {
-    return MAX2<uint>(1, (uint)os::initial_active_processor_count() * 3 / 8);
-  }
 };
 
 #endif // SHARE_SERVICES_HEAPDUMPER_HPP

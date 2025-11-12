@@ -2168,6 +2168,10 @@ public:
   }
 };
 
+bool G1CollectedHeap::supports_parallel_object_iteration() {
+  return true;
+}
+
 void G1CollectedHeap::object_iterate(ObjectClosure* cl) {
   IterateObjectClosureRegionClosure blk(cl);
   heap_region_iterate(&blk);

@@ -584,6 +584,11 @@ void ParallelScavengeHeap::collect_at_safepoint(bool is_full) {
   PSParallelCompact::invoke(clear_soft_refs, should_do_max_compaction);
 }
 
+
+bool ParallelScavengeHeap::supports_parallel_object_iteration() {
+  return true;
+}
+
 void ParallelScavengeHeap::object_iterate(ObjectClosure* cl) {
   young_gen()->object_iterate(cl);
   old_gen()->object_iterate(cl);

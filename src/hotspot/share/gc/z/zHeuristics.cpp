@@ -89,15 +89,6 @@ static uint nworkers(double cpu_share_in_percent) {
               nworkers_based_on_heap_size(2.0));
 }
 
-uint ZHeuristics::nparallel_workers() {
-  // Use 60% of the CPUs, rounded up. We would like to use as many threads as
-  // possible to increase parallelism. However, using a thread count that is
-  // close to the number of processors tends to lead to over-provisioning and
-  // scheduling latency issues. Using 60% of the active processors appears to
-  // be a fairly good balance.
-  return MAX2(nworkers(60.0), 1u);
-}
-
 uint ZHeuristics::nconcurrent_workers() {
   // The number of concurrent threads we would like to use heavily depends
   // on the type of workload we are running. Using too many threads will have

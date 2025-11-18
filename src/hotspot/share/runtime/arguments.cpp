@@ -1629,7 +1629,7 @@ void Arguments::set_heap_size() {
       reasonable_initial = MAX3(reasonable_initial, reasonable_minimum, MinHeapSize);
       reasonable_initial = MIN2(reasonable_initial, MaxHeapSize);
 
-      FLAG_SET_ERGO(InitialHeapSize, (size_t)reasonable_initial);
+      FLAG_SET_ERGO(InitialHeapSize, reasonable_initial);
       log_trace(gc, heap)("  Initial heap size %zu", InitialHeapSize);
     }
 

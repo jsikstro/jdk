@@ -2207,13 +2207,7 @@ static void assert_nonempty_range(const char* addr, size_t bytes) {
 bool os::used_memory(physical_memory_size_type& value) {
 #ifdef LINUX
   if (OSContainer::is_containerized()) {
-    jlong mem_usage = OSContainer::memory_usage_in_bytes();
-    if (mem_usage > 0) {
-      value = static_cast<physical_memory_size_type>(mem_usage);
-      return true;
-    } else {
-      return false;
-    }
+    return OSContainer::memory_usage_in_bytes(value);
   }
 #endif
   physical_memory_size_type avail_mem = 0;
@@ -2224,13 +2218,6 @@ bool os::used_memory(physical_memory_size_type& value) {
   return true;
 }
 
-bool os::compressed_memory(physical_memory_size_type &value) {
-#ifdef __APPLE__
-  return os::Bsd::compressed_memory(value);
-#else
-  return false;
-#endif
-}
 
 bool os::commit_memory(char* addr, size_t bytes, bool executable) {
   assert_nonempty_range(addr, bytes);

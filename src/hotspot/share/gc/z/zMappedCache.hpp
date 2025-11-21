@@ -126,8 +126,6 @@ private:
 public:
   ZMappedCache();
 
-  size_t size() const;
-
   void insert(const ZVirtualMemory& vmem);
 
   ZVirtualMemory remove_contiguous(size_t size);

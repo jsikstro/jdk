@@ -164,22 +164,6 @@ bool os::Bsd::available_memory(physical_memory_size_type& value) {
   return true;
 }
 
-bool os::Bsd::compressed_memory(physical_memory_size_type& value) {
-#ifdef __APPLE__
-  mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
-  vm_statistics64_data_t vmstat;
-  kern_return_t kerr = host_statistics64(mach_host_self(), HOST_VM_INFO64,
-                                         (host_info64_t)&vmstat, &count);
-  assert(kerr == KERN_SUCCESS,
-         "host_statistics64 failed - check mach_host_self() and count");
-  if (kerr == KERN_SUCCESS) {
-    value = vmstat.compressor_page_count * os::vm_page_size();
-    return true;
-  }
-#endif
-  return false;
-}
-
 // for more info see :
 // https://man.openbsd.org/sysctl.2
 void os::Bsd::print_uptime_info(outputStream* st) {
@@ -247,8 +231,6 @@ size_t os::rss() {
 // Cpu architecture string
 #if   defined(ZERO)
 static char cpu_arch[] = ZERO_LIBARCH;
-#elif defined(IA32)
-static char cpu_arch[] = "i386";
 #elif defined(AMD64)
 static char cpu_arch[] = "amd64";
 #elif defined(ARM)
@@ -805,29 +787,6 @@ void os::free_thread(OSThread* osthread) {
 // time support
 
 #ifdef __APPLE__
-double os::elapsed_system_cpu_time() {
-  mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
-  host_cpu_load_info_data_t load_data;
-
-  kern_return_t ret = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, (host_info_t)&load_data, &count);
-  if (ret != KERN_SUCCESS) {
-    assert(false, "This should never happen");
-    return 0.0;
-  }
-
-  natural_t ticks = load_data.cpu_ticks[CPU_STATE_USER] +
-                    load_data.cpu_ticks[CPU_STATE_NICE] +
-                    load_data.cpu_ticks[CPU_STATE_SYSTEM];
-
-  return double(ticks) / CLK_TCK;
-}
-#else
-double os::elapsed_system_cpu_time() {
-  return 0.0;
-}
-#endif
-
-#ifdef __APPLE__
 void os::Bsd::clock_init() {
   mach_timebase_info(&_timebase_info);
 }
@@ -1050,7 +1009,6 @@ bool os::dll_address_to_library_name(address addr, char* buf,
 // same architecture as Hotspot is running on
 
 void *os::Bsd::dlopen_helper(const char *filename, int mode, char *ebuf, int ebuflen) {
-#ifndef IA32
   bool ieee_handling = IEEE_subnormal_handling_OK();
   if (!ieee_handling) {
     Events::log_dll_message(nullptr, "IEEE subnormal handling check failed before loading %s", filename);
@@ -1073,14 +1031,9 @@ void *os::Bsd::dlopen_helper(const char *filename, int mode, char *ebuf, int ebu
   // numerical "accuracy", but we need to protect Java semantics first
   // and foremost. See JDK-8295159.
 
-  // This workaround is ineffective on IA32 systems because the MXCSR
-  // register (which controls flush-to-zero mode) is not stored in the
-  // legacy fenv.
-
   fenv_t default_fenv;
   int rtn = fegetenv(&default_fenv);
   assert(rtn == 0, "fegetenv must succeed");
-#endif // IA32
 
   void* result;
   JFR_ONLY(NativeLibraryLoadEvent load_event(filename, &result);)
@@ -1100,7 +1053,6 @@ void *os::Bsd::dlopen_helper(const char *filename, int mode, char *ebuf, int ebu
   } else {
     Events::log_dll_message(nullptr, "Loaded shared library %s", filename);
     log_info(os)("shared library load of %s was successful", filename);
-#ifndef IA32
     if (! IEEE_subnormal_handling_OK()) {
       // We just dlopen()ed a library that mangled the floating-point
       // flags. Silently fix things now.
@@ -1125,7 +1077,6 @@ void *os::Bsd::dlopen_helper(const char *filename, int mode, char *ebuf, int ebu
         assert(false, "fesetenv didn't work");
       }
     }
-#endif // IA32
   }
 
   return result;
@@ -1234,9 +1185,7 @@ void * os::dll_load(const char *filename, char *ebuf, int ebuflen) {
     {EM_68K,         EM_68K,     ELFCLASS32, ELFDATA2MSB, (char*)"M68k"}
   };
 
-  #if  (defined IA32)
-  static  Elf32_Half running_arch_code=EM_386;
-  #elif   (defined AMD64)
+  #if    (defined AMD64)
   static  Elf32_Half running_arch_code=EM_X86_64;
   #elif  (defined __powerpc64__)
   static  Elf32_Half running_arch_code=EM_PPC64;
@@ -1258,7 +1207,7 @@ void * os::dll_load(const char *filename, char *ebuf, int ebuflen) {
   static  Elf32_Half running_arch_code=EM_68K;
   #else
     #error Method os::dll_load requires that one of following is defined:\
-         IA32, AMD64, __powerpc__, ARM, S390, ALPHA, MIPS, MIPSEL, PARISC, M68K
+         AMD64, __powerpc__, ARM, S390, ALPHA, MIPS, MIPSEL, PARISC, M68K
   #endif
 
   // Identify compatibility class for VM's architecture and library's architecture
@@ -2534,7 +2483,7 @@ bool os::pd_dll_unload(void* libhandle, char* ebuf, int ebuflen) {
       error_report = "dlerror returned no error description";
     }
     if (ebuf != nullptr && ebuflen > 0) {
-      os::snprintf_checked(ebuf, ebuflen - 1, "%s", error_report);
+      os::snprintf_checked(ebuf, ebuflen, "%s", error_report);
     }
   }
 

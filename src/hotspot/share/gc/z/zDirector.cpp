@@ -21,21 +21,18 @@
  * questions.
  */
 
+#include "cppstdlib/limits.hpp"
 #include "gc/shared/gc_globals.hpp"
-#include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zDirector.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zGeneration.inline.hpp"
-#include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "logging/log.hpp"
-#include "runtime/globals_extension.hpp"
-
-#include <limits>
+#include "runtime/init.hpp"
 
 ZDirector* ZDirector::_director;
 
@@ -49,9 +46,7 @@ struct ZWorkerResizeStats {
 };
 
 struct ZDirectorHeapStats {
-  size_t _current_max_capacity;
-  size_t _capacity;
-  size_t _heuristic_max_capacity;
+  size_t _soft_max_heap_size;
   size_t _used;
   uint   _total_collections;
 };
@@ -227,19 +222,7 @@ static ZDriverRequest rule_soft_minor_allocation_rate_dynamic(const ZDirectorSta
                                               0.0 /* serial_gc_time_passed */,
                                               0.0 /* parallel_gc_time_passed */,
                                               false /* conservative_alloc_rate */,
-                                              stats._heap._heuristic_max_capacity /* capacity */);
-}
-
-static size_t heuristic_hard_capacity(const ZDirectorStats& stats) {
-  if (!ZAdaptiveHeap::can_adapt()) {
-    return stats._heap._current_max_capacity;
-  }
-
-  const size_t used_memory = stats._heap._capacity;
-  const size_t max_capacity = stats._heap._current_max_capacity;
-  const size_t available_memory = max_capacity - used_memory;
-  const size_t scaled_available_memory = (size_t)(available_memory * 0.2);
-  return align_down(used_memory + scaled_available_memory, ZGranuleSize);
+                                              stats._heap._soft_max_heap_size /* capacity */);
 }
 
 static ZDriverRequest rule_semi_hard_minor_allocation_rate_dynamic(const ZDirectorStats& stats,
@@ -249,7 +232,7 @@ static ZDriverRequest rule_semi_hard_minor_allocation_rate_dynamic(const ZDirect
                                             0.0 /* serial_gc_time_passed */,
                                             0.0 /* parallel_gc_time_passed */,
                                             false /* conservative_alloc_rate */,
-                                            heuristic_hard_capacity(stats) /* capacity */);
+                                            ZHeap::heap()->max_capacity() /* capacity */);
 }
 
 static ZDriverRequest rule_hard_minor_allocation_rate_dynamic(const ZDirectorStats& stats,
@@ -259,7 +242,7 @@ static ZDriverRequest rule_hard_minor_allocation_rate_dynamic(const ZDirectorSta
                                             0.0 /* serial_gc_time_passed */,
                                             0.0 /* parallel_gc_time_passed */,
                                             true /* conservative_alloc_rate */,
-                                            heuristic_hard_capacity(stats) /* capacity */);
+                                            ZHeap::heap()->max_capacity() /* capacity */);
 }
 
 static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
@@ -276,9 +259,9 @@ static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
 
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t heuristic_max_capacity = stats._heap._heuristic_max_capacity;
+  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
   const size_t used = stats._heap._used;
-  const size_t free_including_headroom = heuristic_max_capacity - MIN2(heuristic_max_capacity, used);
+  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
   const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
 
   // Calculate time until OOM given the max allocation rate and the amount
@@ -312,10 +295,10 @@ static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
 
 static bool is_young_small(const ZDirectorStats& stats) {
   // Calculate amount of freeable memory available.
-  const size_t heuristic_max_capacity = stats._heap._heuristic_max_capacity;
+  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
   const size_t young_used = stats._young_stats._general._used;
 
-  const double young_used_percent = percent_of(young_used, heuristic_max_capacity);
+  const double young_used_percent = percent_of(young_used, soft_max_capacity);
 
   // If the freeable memory isn't even 5% of the heap, we can't expect to free up
   // all that much memory, so let's not even try - it will likely be a wasted effort
@@ -326,11 +309,11 @@ static bool is_young_small(const ZDirectorStats& stats) {
 static bool is_high_usage(const ZDirectorStats& stats, bool log = false) {
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t max_capacity = stats._heap._current_max_capacity;
+  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
   const size_t used = stats._heap._used;
-  const size_t free_including_headroom = max_capacity - MIN2(max_capacity, used);
+  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
   const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, max_capacity);
+  const double free_percent = percent_of(free, soft_max_capacity);
 
   if (log) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: %zuMB(%.1f%%)",
@@ -429,12 +412,10 @@ static bool rule_major_warmup(const ZDirectorStats& stats) {
   // Perform GC if heap usage passes 10/20/30% and no other GC has been
   // performed yet. This allows us to get some early samples of the GC
   // duration, which is needed by the other rules.
-  const size_t heuristic_max_capacity = stats._heap._heuristic_max_capacity;
+  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
   const size_t used = stats._heap._used;
-  const double used_threshold_percent = ZAdaptiveHeap::can_adapt()
-      ? 0.75
-      : ((stats._old_stats._cycle._nwarmup_cycles + 1) * 0.1);
-  const size_t used_threshold = (size_t)(heuristic_max_capacity * used_threshold_percent);
+  const double used_threshold_percent = (stats._old_stats._cycle._nwarmup_cycles + 1) * 0.1;
+  const size_t used_threshold = (size_t)(soft_max_capacity * used_threshold_percent);
 
   log_debug(gc, director)("Rule Major: Warmup %.0f%%, Used: %zuMB, UsedThreshold: %zuMB",
                           used_threshold_percent * 100, used / M, used_threshold / M);
@@ -588,10 +569,11 @@ static bool rule_major_proactive(const ZDirectorStats& stats) {
   // of free space on the heap.
 
   // Only consider doing a proactive GC if the heap usage has grown by at least
-  // 10% of the max capacity since the previous GC, and more than 5 minutes has
-  // passed since the previous GC. This helps avoid superfluous GCs.
+  // 10% of the max capacity since the previous GC, or more than 5 minutes has
+  // passed since the previous GC. This helps avoid superfluous GCs when running
+  // applications with very low allocation rate.
   const size_t used_after_last_gc = stats._old_stats._stat_heap._used_at_relocate_end;
-  const size_t used_increase_threshold = (size_t)(stats._heap._heuristic_max_capacity * 0.10); // 10%
+  const size_t used_increase_threshold = (size_t)(stats._heap._soft_max_heap_size * 0.10); // 10%
   const size_t used_threshold = used_after_last_gc + used_increase_threshold;
   const size_t used = stats._heap._used;
   const double time_since_last_gc = stats._old_stats._cycle._time_since_last;
@@ -881,16 +863,9 @@ bool ZDirector::wait_for_tick() {
 static ZDirectorHeapStats sample_heap_stats() {
   const ZHeap* const heap = ZHeap::heap();
   const ZCollectedHeap* const collected_heap = ZCollectedHeap::heap();
-  const size_t curr_max_capacity_sample = heap->current_max_capacity();
-  const size_t used = heap->used();
-  const size_t capacity = MAX2(heap->capacity(), used);
-  const size_t current_max_capacity = MAX2(capacity, curr_max_capacity_sample);
-  const size_t heuristic_max_capacity = MIN2(heap->heuristic_max_capacity(), current_max_capacity);
   return {
-    current_max_capacity,
-    capacity,
-    heuristic_max_capacity,
-    used,
+    heap->soft_max_capacity(),
+    heap->used(),
     collected_heap->total_collections()
   };
 }
@@ -938,35 +913,19 @@ static ZDirectorStats sample_stats() {
   };
 }
 
-static void adjust_capacity(const ZDirectorStats& stats, double sampling_interval) {
-  if (!ZAdaptiveHeap::can_adapt()) {
-    // We do not asynchronously adjust the capacity without adaptive heap sizing.
-    return;
-  }
-
-  const size_t used = stats._heap._used;
-  const size_t max_capacity = stats._heap._current_max_capacity;
-
-  const size_t used_next_byte_sample = MIN2(used + 2 * stats._mutator_alloc_rate._sampling_granule, max_capacity);
-
-  const double avg_alloc_rate = stats._mutator_alloc_rate._avg;
-  const size_t used_next_time_sample = MIN2(used + 2 * size_t(sampling_interval * avg_alloc_rate), max_capacity);
-
-  const size_t used_after_yc = stats._heap._heuristic_max_capacity;
-
-  const size_t used_soon = align_up(MAX3(used_next_time_sample, used_next_byte_sample, used_after_yc), ZGranuleSize);
-
-  ZHeap::heap()->adjust_capacity(used_soon);
-}
-
 void ZDirector::run_thread() {
   // Main loop
   while (wait_for_tick()) {
     ZDirectorStats stats = sample_stats();
+
+    if (!is_init_completed()) {
+      // Not allowed to start GCs yet
+      continue;
+    }
+
     if (!start_gc(stats)) {
       adjust_gc(stats);
     }
-    adjust_capacity(stats, 1.0 / DecisionHz);
   }
 }
 

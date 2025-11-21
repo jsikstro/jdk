@@ -29,15 +29,20 @@
 #include "memory/universe.hpp"
 #include "runtime/globals.hpp"
 
-void AbstractLRUReferencePolicy::set_max_interval(jlong max_interval) {
-  assert(max_interval >= 0, "Sanity check");
-  _max_interval = max_interval;
+LRUCurrentHeapPolicy::LRUCurrentHeapPolicy() {
+  setup();
+}
+
+// Capture state (of-the-VM) information needed to evaluate the policy
+void LRUCurrentHeapPolicy::setup() {
+  _max_interval = (Universe::heap()->free_at_last_gc() / M) * SoftRefLRUPolicyMSPerMB;
+  assert(_max_interval >= 0,"Sanity check");
 }
 
 // The oop passed in is the SoftReference object, and not
 // the object the SoftReference points to.
-bool AbstractLRUReferencePolicy::should_clear_reference(oop p, jlong timestamp_clock) {
-  assert(_max_interval >= 0, "Forgot to call setup");
+bool LRUCurrentHeapPolicy::should_clear_reference(oop p,
+                                                  jlong timestamp_clock) {
   jlong interval = timestamp_clock - java_lang_ref_SoftReference::timestamp(p);
   assert(interval >= 0, "Sanity check");
 
@@ -49,12 +54,11 @@ bool AbstractLRUReferencePolicy::should_clear_reference(oop p, jlong timestamp_c
   return true;
 }
 
-// Capture state (of-the-VM) information needed to evaluate the policy
-void LRUCurrentHeapPolicy::setup() {
-  set_max_interval((jlong)(Universe::heap()->free_at_last_gc() / M) * SoftRefLRUPolicyMSPerMB);
-}
-
 /////////////////////// MaxHeap //////////////////////
+
+LRUMaxHeapPolicy::LRUMaxHeapPolicy() {
+  setup();
+}
 
 // Capture state (of-the-VM) information needed to evaluate the policy
 void LRUMaxHeapPolicy::setup() {
@@ -62,5 +66,21 @@ void LRUMaxHeapPolicy::setup() {
   max_heap -= Universe::heap()->used_at_last_gc();
   max_heap /= M;
 
-  set_max_interval((jlong)max_heap * SoftRefLRUPolicyMSPerMB);
+  _max_interval = max_heap * SoftRefLRUPolicyMSPerMB;
+  assert(_max_interval >= 0,"Sanity check");
+}
+
+// The oop passed in is the SoftReference object, and not
+// the object the SoftReference points to.
+bool LRUMaxHeapPolicy::should_clear_reference(oop p,
+                                             jlong timestamp_clock) {
+  jlong interval = timestamp_clock - java_lang_ref_SoftReference::timestamp(p);
+  assert(interval >= 0, "Sanity check");
+
+  // The interval will be zero if the ref was accessed since the last scavenge/gc.
+  if(interval <= _max_interval) {
+    return false;
+  }
+
+  return true;
 }

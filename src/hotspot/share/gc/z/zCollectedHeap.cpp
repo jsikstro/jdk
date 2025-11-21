@@ -34,6 +34,7 @@
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
+#include "gc/z/zHeuristics.hpp"
 #include "gc/z/zJNICritical.hpp"
 #include "gc/z/zNMethod.hpp"
 #include "gc/z/zObjArrayAllocator.hpp"
@@ -110,7 +111,7 @@ void ZCollectedHeap::stop() {
 }
 
 size_t ZCollectedHeap::max_capacity() const {
-  return _heap.dynamic_max_capacity();
+  return _heap.max_capacity();
 }
 
 size_t ZCollectedHeap::capacity() const {
@@ -222,11 +223,11 @@ void ZCollectedHeap::do_full_collection(bool clear_all_soft_refs) {
   ShouldNotReachHere();
 }
 
-size_t ZCollectedHeap::tlab_capacity(Thread* ignored) const {
+size_t ZCollectedHeap::tlab_capacity() const {
   return _heap.tlab_capacity();
 }
 
-size_t ZCollectedHeap::tlab_used(Thread* ignored) const {
+size_t ZCollectedHeap::tlab_used() const {
   return _heap.tlab_used();
 }
 
@@ -234,7 +235,7 @@ size_t ZCollectedHeap::max_tlab_size() const {
   return _heap.max_tlab_size() / HeapWordSize;
 }
 
-size_t ZCollectedHeap::unsafe_max_tlab_alloc(Thread* ignored) const {
+size_t ZCollectedHeap::unsafe_max_tlab_alloc() const {
   return _heap.unsafe_max_tlab_alloc();
 }
 
@@ -242,7 +243,7 @@ MemoryUsage ZCollectedHeap::memory_usage() {
   const size_t initial_size = InitialHeapSize;
   const size_t committed    = ZHeap::heap()->capacity();
   const size_t used         = MIN2(ZHeap::heap()->used(), committed);
-  const size_t max_size     = ZHeap::heap()->dynamic_max_capacity();
+  const size_t max_size     = ZHeap::heap()->max_capacity();
 
   return MemoryUsage(initial_size, used, committed, max_size);
 }
@@ -296,6 +297,10 @@ void ZCollectedHeap::unregister_nmethod(nmethod* nm) {
   // is too late for ZGC.
 
   ZNMethod::purge_nmethod(nm);
+}
+
+size_t ZCollectedHeap::bootstrap_max_memory() const {
+  return MaxHeapSize - ZHeuristics::significant_young_overhead();
 }
 
 void ZCollectedHeap::verify_nmethod(nmethod* nm) {

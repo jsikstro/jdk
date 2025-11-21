@@ -48,9 +48,6 @@ const char* ZLargePages::to_string() {
       return "Enabled (Transparent)";
     }
 
-  case Collapse:
-    return "Enabled (Transparent, JVM enforced)";
-
   default:
     if (_os_enforced_transparent_mode) {
       return "Disabled (OS enforced)";

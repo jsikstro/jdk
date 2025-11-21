@@ -61,10 +61,6 @@ public class TestOptionsWithRangesDynamic {
          * Exclude SoftMaxHeapSize as its valid range is only known at runtime.
          */
         excludeTestRange("SoftMaxHeapSize");
-        /*
-         * Exclude ZGCPressure as its valid range depends on its initial value.
-         */
-        excludeTestRange("ZGCPressure");
 
         Asserts.assertGT(allWriteableOptions.size(), 0, "Options with ranges not found!");
 

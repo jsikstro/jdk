@@ -42,14 +42,12 @@ size_t MaxOldSize = 0;
 // See more in JDK-8346005
 size_t OldSize = ScaleForWordSize(4*M);
 
-size_t GenArguments::conservative_max_heap_alignment() { return (size_t)Generation::GenGrain; }
-
-static size_t young_gen_size_lower_bound() {
+size_t GenArguments::young_gen_size_lower_bound() {
   // The young generation must be aligned and have room for eden + two survivors
   return 3 * SpaceAlignment;
 }
 
-static size_t old_gen_size_lower_bound() {
+size_t GenArguments::old_gen_size_lower_bound() {
   return SpaceAlignment;
 }
 
@@ -62,13 +60,6 @@ static size_t bound_minus_alignment(size_t desired_size,
                                     size_t alignment) {
   size_t max_minus = maximum_size - alignment;
   return MIN2(desired_size, max_minus);
-}
-
-void GenArguments::initialize_alignments() {
-  // Initialize card size before initializing alignments
-  CardTable::initialize_card_size();
-  SpaceAlignment = (size_t)Generation::GenGrain;
-  HeapAlignment = compute_heap_alignment();
 }
 
 void GenArguments::initialize_heap_flags_and_sizes() {

@@ -823,7 +823,7 @@ void os::free_thread(OSThread* osthread) {
 // time support
 
 #ifdef __APPLE__
-double os::elapsed_system_cpu_time() {
+double os::Machine::elapsed_system_cpu_time() {
   mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
   host_cpu_load_info_data_t load_data;
 
@@ -840,7 +840,7 @@ double os::elapsed_system_cpu_time() {
   return double(ticks) / CLK_TCK;
 }
 #else
-double os::elapsed_system_cpu_time() {
+double os::Machine::elapsed_system_cpu_time() {
   return 0.0;
 }
 #endif

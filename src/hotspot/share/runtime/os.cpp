@@ -2208,6 +2208,17 @@ bool os::used_memory(physical_memory_size_type& value) {
   return Machine::used_memory(value);
 }
 
+double os::elapsed_system_cpu_time() {
+  if (is_containerized()) {
+    double result;
+    if (Container::elapsed_system_cpu_time(result)) {
+      return result;
+    }
+  }
+
+  return Machine::elapsed_system_cpu_time();
+}
+
 bool os::Machine::used_memory(physical_memory_size_type& value) {
   physical_memory_size_type avail_mem = 0;
   // Return value ignored - defaulting to 0 on failure.
@@ -2229,11 +2240,15 @@ bool os::compressed_memory(physical_memory_size_type &value) {
 bool os::is_containerized() {
   return false;
 }
-}
 
 bool os::Container::processor_count(double& value) {
   ShouldNotReachHere();
-  return 0.0;
+  return false;
+}
+
+bool os::Container::elapsed_system_cpu_time(double& value) {
+  ShouldNotReachHere();
+  return false;
 }
 
 bool os::Container::available_memory(physical_memory_size_type& value) {

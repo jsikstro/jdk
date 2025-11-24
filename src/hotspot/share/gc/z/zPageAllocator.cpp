@@ -693,7 +693,7 @@ size_t ZPartition::available(size_t limit) const {
   assert(_capacity == _used + _claimed + _cache.size(), "Should be consistent"
           " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
           _capacity, _used, _claimed, _cache.size());
-  assert(limit <= _static_max_capacity, "Invalid limit for partition");
+  assert(limit <= _static_max_capacity, "Invalid limit for partition: %zx", limit);
   const size_t unavailable = _used + _claimed;
 
   if (limit < unavailable) {
@@ -1567,7 +1567,7 @@ size_t ZPageAllocator::current_max_capacity() const {
   }
 
   // Calculate current max capacity based on machine usage
-  return ZAdaptiveHeap::current_max_capacity(capacity(), dynamic_max_capacity());
+  return ZAdaptiveHeap::current_max_capacity(capacity());
 }
 
 static size_t clamp_to_soft_max_capacity(size_t value) {

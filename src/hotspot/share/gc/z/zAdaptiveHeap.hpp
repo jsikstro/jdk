@@ -39,11 +39,42 @@ struct ZHeapResizeMetrics {
   const double _alloc_rate;
 };
 
+struct ZSystemMemoryPressureMetrics {
+  const physical_memory_size_type _used_memory;
+  const physical_memory_size_type _max_memory;
+
+  const double _concerning_threshold;
+  const double _high_threshold;
+  const double _critical_threshold;
+};
+
 struct ZMemoryPressureMetrics {
   const double _unscaled_gc_pressure;
-  const physical_memory_size_type _system_used_memory;
-  const physical_memory_size_type _system_compressed_memory;
-  const physical_memory_size_type _system_max_memory;
+  const bool _is_containerized;
+  const ZSystemMemoryPressureMetrics _machine;
+  const ZSystemMemoryPressureMetrics _container;
+};
+
+struct ZSystemCpuPressureMetrics {
+  const double _avg_process_load;
+  const double _avg_system_load;
+};
+
+struct ZCpuPressureMetrics {
+  const bool _is_containerized;
+  const double _generation_gc_cpu_overhead;
+  const double _avg_generation_gc_cpu_overhead;
+  const double _avg_total_gc_cpu_overhead;
+  const double _avg_gc_interval;
+  const double _gc_time;
+  const ZSystemCpuPressureMetrics _machine;
+  const ZSystemCpuPressureMetrics _container;
+};
+
+struct ZResourcePressure {
+  const double _gc_pressure;
+  const double _cpu_pressure;
+  const double _mem_pressure;
 };
 
 class ZAdaptiveHeap : public AllStatic {
@@ -54,19 +85,23 @@ private:
   static TruncatedSeq _gc_pressures;
 
   struct ZGenerationOverhead {
-    double       _last_system_time;
+    double       _last_machine_system_time;
+    double       _last_container_system_time;
     double       _last_process_time;
     double       _last_time;
     TruncatedSeq _process_times;
-    TruncatedSeq _system_times;
+    TruncatedSeq _machine_system_times;
+    TruncatedSeq _container_system_times;
     TruncatedSeq _gc_times;
     TruncatedSeq _gc_times_since_last;
 
     ZGenerationOverhead()
-      : _last_system_time(),
+      : _last_machine_system_time(),
+        _last_container_system_time(),
         _last_process_time(),
         _process_times(),
-        _system_times(),
+        _machine_system_times(),
+        _container_system_times(),
         _gc_times(),
         _gc_times_since_last() {}
   };
@@ -76,8 +111,12 @@ private:
   static ZGenerationOverhead _young_data;
   static ZGenerationOverhead _old_data;
 
-  static double gc_pressure(double unscaled_pressure, double process_cpu_usage, double system_cpu_usage, double& mem_pressure);
-  static double memory_pressure(const ZMemoryPressureMetrics& metrics);
+  static ZCpuPressureMetrics cpu_pressure_metrics(ZGenerationId generation);
+
+  static ZResourcePressure compute_pressures(const ZMemoryPressureMetrics& mem_metrics,
+                                             const ZCpuPressureMetrics& cpu_metrics,
+                                             size_t projected_process_used_memory);
+  static double compute_memory_pressure(const ZMemoryPressureMetrics& metrics);
 
 public:
   static void initialize(bool explicit_max_heap_size, bool can_adapt);
@@ -94,7 +133,7 @@ public:
 
   static bool explicit_max_capacity();
   static bool can_adapt();
-  static size_t current_max_capacity(size_t capacity, size_t dynamic_max_capacity);
+  static size_t current_max_capacity(size_t capacity);
 
   static constexpr double DefaultMaxRAMPercentage = 100.;
   static constexpr size_t DefaultMinHeapSize = 2 * M;

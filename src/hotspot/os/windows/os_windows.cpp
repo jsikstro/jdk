@@ -1247,7 +1247,7 @@ double os::elapsed_process_cpu_time() {
   return user_seconds + kernel_seconds;
 }
 
-double os::elapsed_system_cpu_time() {
+double os::Machine::elapsed_system_cpu_time() {
   FILETIME idle, kernel, user;
   if (GetSystemTimes(&idle, &kernel, &user) == 0) {
     assert(false, "this should not fail");

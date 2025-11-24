@@ -113,10 +113,11 @@ void ParallelArguments::initialize() {
 }
 
 static size_t num_young_spaces() {
+  // When using NUMA, we create one MutableNUMASpace for each NUMA node
   const size_t num_eden_spaces = UseNUMA ? os::numa_get_groups_num() : 1;
 
-  // One for each space in eden and two survivors
-  return (num_eden_spaces + 2);
+  // The young generation must have room for eden + two survivors
+  return num_eden_spaces + 2;
 }
 
 static size_t num_old_spaces() {

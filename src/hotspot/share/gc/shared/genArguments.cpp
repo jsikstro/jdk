@@ -42,15 +42,6 @@ size_t MaxOldSize = 0;
 // See more in JDK-8346005
 size_t OldSize = ScaleForWordSize(4*M);
 
-size_t GenArguments::young_gen_size_lower_bound() {
-  // The young generation must be aligned and have room for eden + two survivors
-  return 3 * SpaceAlignment;
-}
-
-size_t GenArguments::old_gen_size_lower_bound() {
-  return SpaceAlignment;
-}
-
 size_t GenArguments::scale_by_NewRatio_aligned(size_t base_size, size_t alignment) {
   return align_down_bounded(base_size / (NewRatio + 1), alignment);
 }

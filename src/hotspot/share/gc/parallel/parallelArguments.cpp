@@ -127,7 +127,6 @@ void ParallelArguments::initialize_alignments() {
   // Initialize card size before initializing alignments
   CardTable::initialize_card_size();
   const size_t card_table_alignment = CardTable::ct_max_alignment_constraint();
-
   SpaceAlignment = ParallelScavengeHeap::default_space_alignment();
 
   if (UseLargePages) {
@@ -135,11 +134,17 @@ void ParallelArguments::initialize_alignments() {
     const size_t page_size =  os::page_size_for_region_unaligned(MaxHeapSize, total_spaces);
     ParallelScavengeHeap::set_desired_page_size(page_size);
 
+    if (page_size == os::vm_page_size()) {
+      log_warning(gc, heap)("MaxHeapSize (%zu) must be large enough for %zu * page-size; Disabling UseLargePages for heap",
+                            MaxHeapSize, total_spaces);
+    }
+
     if (page_size > SpaceAlignment) {
       SpaceAlignment = page_size;
     }
 
     HeapAlignment = lcm(page_size, card_table_alignment);
+
   } else {
     assert(is_aligned(SpaceAlignment, os::vm_page_size()), "");
     ParallelScavengeHeap::set_desired_page_size(os::vm_page_size());
@@ -153,11 +158,6 @@ size_t ParallelArguments::young_gen_size_lower_bound() {
 
 size_t ParallelArguments::old_gen_size_lower_bound() {
   return num_old_spaces() * SpaceAlignment;
-}
-
-void ParallelArguments::initialize_heap_flags_and_sizes() {
-
-  GenArguments::initialize_heap_flags_and_sizes();
 }
 
 size_t ParallelArguments::heap_reserved_size_bytes() {

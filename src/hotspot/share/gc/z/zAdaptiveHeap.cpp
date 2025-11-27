@@ -757,11 +757,16 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
   precond(_initialized);
   physical_memory_size_type machine_available_memory;
 
+  if (_explicit_max_capacity) {
+    return ZHeap::heap()->static_max_capacity();
+  }
+
   if (!os::Machine::available_memory(machine_available_memory)) {
     return dynamic_max_memory();
   }
 
   const double near_avoid = (1.0 - ZMemoryCriticalThreshold);
+  physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
 
   // It is a bit naive to assume all available memory can be directly turned
   // into our own heap memory. We need auxiliary GC data structures, and other
@@ -769,7 +774,7 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
   // the available memory we stay on the pessimistic size, and let the estimated
   // current max capacity grow gradually as we approach the limits instead.
   const size_t machine_scaled_available_memory = size_t(machine_available_memory * near_avoid);
-  const size_t machine_max_capacity = align_down(capacity + machine_scaled_available_memory, ZGranuleSize);
+  const size_t machine_max_capacity = MIN2(align_down(capacity + machine_scaled_available_memory, ZGranuleSize), size_t(machine_max_memory * near_avoid));
 
   if (!os::is_containerized()) {
     return machine_max_capacity;
@@ -782,7 +787,6 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
     container_used_memory = os::rss();
   }
 
-  physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
   physical_memory_size_type container_critical_memory;
 
   // Keep below the hard memory limit or the OOM killer will get us

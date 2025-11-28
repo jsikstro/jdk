@@ -78,6 +78,46 @@ static bool is_limiting_memory(physical_memory_size_type container_limit, physic
   return container_limit < machine_limit;
 }
 
+static double* generate_factorials(uint64_t max) {
+  double* result = NEW_C_HEAP_ARRAY(double, max + 1, mtGC);
+  result[0] = 1.0;
+  for (uint64_t i = 1; i <= max; ++i) {
+    result[i] = result[i - 1] * i;
+  }
+  return result;
+}
+
+// Probability to have to wait in a queue given c servers and rho queue utilization
+static double erlang_c(int c, double rho, int max_processors) {
+  static double* factorials = nullptr;
+  if (factorials == nullptr) {
+    factorials = generate_factorials(max_processors);
+  }
+
+  double unutilized_reciprocal = 1.0 / (1.0 - rho);
+  double offered_load = rho * c;
+  double nominator = unutilized_reciprocal * pow(offered_load, double(c)) / factorials[c];
+
+  double sum = 0.0;
+  for (int k = 0; k < c; ++k) {
+    sum += pow(offered_load, double(k)) / factorials[k];
+  }
+
+  double denominator = nominator + sum;
+
+  return nominator / denominator;
+}
+
+static double cpu_latency_factor(int c, double rho, double unluckyness, int max_processors) {
+  double prob_join_queue = erlang_c(c, rho, max_processors);
+
+  // P99 is approximately 100x more likely to join the queue
+  double p99_prob_join_queue = MIN2(prob_join_queue * unluckyness, 1.0);
+  double p99_latency_factor = p99_prob_join_queue / (1.0 - rho);
+
+  return 1.0 + p99_latency_factor;
+}
+
 ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   precond(_initialized);
   const double unscaled_gc_pressure = AtomicAccess::load(&ZGCPressure);
@@ -376,7 +416,7 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   };
 }
 
-static double compute_cpu_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
+static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
   const double process_memory_usage_ratio = clamp(double(process_used_memory) / double(mem_metrics._used_memory), 0.0, 1.0);
 
   const double process_cpu_usage_ratio = cpu_metrics._avg_process_load / cpu_metrics._avg_system_load;
@@ -398,9 +438,7 @@ static double compute_cpu_pressure(const ZSystemMemoryPressureMetrics& mem_metri
   // so that CPU can decrease a bit, avoiding latency issues due to too high
   // CPU utilization, to some reasonable limit.
   const double responsive_system_cpu_usage = cpu_metrics._avg_system_load / ZCPUConcerningThreshold;
-
   const double system_memory_usage = double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
-
   const double system_cpu_pressure = 1.0 / (1.0 + clamp(responsive_system_cpu_usage - system_memory_usage, -0.1, 1.0));
 
   // Balance the forces of resource share imbalance across processes with the
@@ -408,26 +446,42 @@ static double compute_cpu_pressure(const ZSystemMemoryPressureMetrics& mem_metri
   return process_cpu_pressure * system_cpu_pressure;
 }
 
-static double compute_cpu_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
-  const double machine_cpu_pressure = compute_cpu_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
+static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
+  const double machine_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
 
   if (!cpu_metrics._is_containerized) {
     return machine_cpu_pressure;
   }
 
-  const double container_cpu_pressure = compute_cpu_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
+  const double container_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
   return MAX2(container_cpu_pressure, machine_cpu_pressure);
+}
+
+static double compute_cpu_vs_latency_pressure(const ZSystemCpuPressureMetrics& machine_cpu_metrics) {
+  // Approximate latency risks on the machine level using an M/M/c queue system.
+  // This allows us to calculate by what factor tail latency will be affected by
+  // the CPU pressure. Rather than looking at the current CPU pressure, we look
+  // ahead a bit so we deal with latency problems proactively - before they arise,
+  // instead of post mortem.
+  // This type of M/M/c calculations make sense on a system level, but for the
+  // container level, things work differently, and CPU vs memory is considered
+  // purely as a resource balancing exercise, which still helps latency as well.
+  double rho = MIN2(machine_cpu_metrics._avg_system_load + 0.05, 0.99);
+  const double p99_response_time_scaling = cpu_latency_factor(os::Machine::active_processor_count(), rho, 100.0, os::processor_count());
+  return 1.0 / MIN2(p99_response_time_scaling, 5.0);
 }
 
 ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, size_t projected_process_used_memory) {
   precond(_initialized);
   const double mem_pressure = compute_memory_pressure(mem_metrics);
-  const double cpu_pressure = compute_cpu_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
+  const double cpu_vs_memory_pressure = compute_cpu_vs_memory_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
+  const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(cpu_metrics._machine);
+  const double cpu_pressure = MIN2(cpu_vs_memory_pressure, cpu_vs_latency_pressure);
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
-  const double scale = mem_pressure * cpu_pressure;
+  const double pressure = mem_pressure * cpu_pressure;
 
-  const double scaled_gc_pressure = mem_metrics._unscaled_gc_pressure * scale;
+  const double scaled_gc_pressure = mem_metrics._unscaled_gc_pressure * pressure;
   double gc_pressure;
 
   {
@@ -436,7 +490,13 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
     gc_pressure = MAX2(_gc_pressures.avg(), scaled_gc_pressure);
   }
 
-  return { gc_pressure, cpu_pressure, mem_pressure };
+  return {
+    gc_pressure,
+    cpu_pressure,
+    mem_pressure,
+    cpu_vs_memory_pressure,
+    cpu_vs_latency_pressure
+  };
 }
 
 // Logistic function, produces values in the range 0 - 1 in an S shape
@@ -504,7 +564,6 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   // Calculate the GC pressure that scales the rest of the heuristics
   ZResourcePressure pressures = compute_pressures(mem_metrics, cpu_metrics, projected_process_used_memory);
   const double gc_pressure = pressures._gc_pressure;
-  const double cpu_pressure = pressures._cpu_pressure;
   const double mem_pressure = pressures._mem_pressure;
   const double avg_time_since_last = cpu_metrics._avg_gc_interval;
 
@@ -575,6 +634,10 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   // Grow if we experience short term *and* long term reverse pressure on the heap
   const bool should_shrink = lower_bounded_capacity < heuristic_max_capacity && upper_bounded_capacity < heuristic_max_capacity;
 
+  const double cpu_pressure = pressures._cpu_pressure;
+  const double cpu_vs_memory_pressure = pressures._cpu_vs_memory_pressure;
+  const double cpu_vs_latency_pressure = pressures._cpu_vs_latency_pressure;
+
   if (cpu_metrics._is_containerized) {
     log_info(gc, load)("Container: System Memory Load: %.1f%%, Process Memory Load: %.1f%%, Heap Memory Load: %.1f%%",
                        double(mem_metrics._container._used_memory) / double(mem_metrics._container._max_memory) * 100.0,
@@ -601,8 +664,10 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
 
     log_debug(gc, heap)("System CPU Pressure: %.1f, System Memory Pressure: %.1f",
                         cpu_pressure, mem_pressure);
-    log_debug(gc, heap)("GC Pressure: %.1f, GC Pressure Scaling: %.1f",
-                        gc_pressure, gc_pressure / mem_metrics._unscaled_gc_pressure);
+    log_debug(gc, heap)("System CPU vs Memory Pressure: %.1f, System CPU vs Latency Pressure: %.1f",
+                        cpu_vs_memory_pressure, cpu_vs_latency_pressure);
+    log_info(gc, heap)("GC Pressure: %.1f, GC Pressure Scaling: %.1f",
+                       gc_pressure, gc_pressure / mem_metrics._unscaled_gc_pressure);
 
     log_debug(gc, heap)("GC Interval: %.3fs, Target Minimum: %.3fs",
                         avg_time_since_last, target_gc_interval);

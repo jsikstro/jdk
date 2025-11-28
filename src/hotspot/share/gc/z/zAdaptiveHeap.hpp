@@ -75,6 +75,8 @@ struct ZResourcePressure {
   const double _gc_pressure;
   const double _cpu_pressure;
   const double _mem_pressure;
+  const double _cpu_vs_memory_pressure;
+  const double _cpu_vs_latency_pressure;
 };
 
 class ZAdaptiveHeap : public AllStatic {

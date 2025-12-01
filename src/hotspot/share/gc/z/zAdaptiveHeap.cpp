@@ -47,6 +47,7 @@ volatile double ZAdaptiveHeap::_young_to_old_gc_time = 1.0;
 double ZAdaptiveHeap::_accumulated_young_gc_time = 0.0;
 ZAdaptiveHeap::ZGenerationOverhead ZAdaptiveHeap::_young_data;
 ZAdaptiveHeap::ZGenerationOverhead ZAdaptiveHeap::_old_data;
+volatile uint ZAdaptiveHeap::_initial_young_worker_cap;
 
 static ZLock* _stat_lock;
 
@@ -71,6 +72,17 @@ void ZAdaptiveHeap::initialize(bool explicit_max_capacity, bool can_adapt) {
 double ZAdaptiveHeap::young_to_old_gc_time() {
   precond(_initialized);
   return AtomicAccess::load(&_young_to_old_gc_time);
+}
+
+uint ZAdaptiveHeap::initial_young_worker_cap() {
+  precond(_initialized);
+  uint capacity = AtomicAccess::load(&_initial_young_worker_cap);
+  if (capacity == 0) {
+    // Not yet set; use one - there are barely any objects early on anyway
+    return 1;
+  }
+
+  return capacity;
 }
 
 static bool is_limiting_memory(physical_memory_size_type container_limit, physical_memory_size_type machine_limit) {
@@ -404,6 +416,7 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
     avg_generation_gc_cpu_overhead,
     avg_total_gc_cpu_overhead,
     avg_time_since_last,
+    avg_process_time,
     gc_time,
     {
       avg_machine_process_cpu_load,
@@ -583,6 +596,15 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   // a maximum of 25% of the available cores. So all ConcGCThreads would
   // be running back to back then.
   const double target_cpu_overhead = gc_pressure / 40.0;
+
+  // Save some breadcrumbs to the director to not use more conc GC threads
+  // than we need to run back to back GC at the target GC CPU overhead limit.
+  // It is better to let concurrent heap expansion run.
+  const double avg_process_time = cpu_metrics._avg_process_time;
+  const double avg_process_cpus = avg_process_time / avg_time_since_last;
+  const double high_target_workers = avg_process_cpus * target_cpu_overhead;
+  uint initial_young_worker_cap = clamp<uint>((uint)ceil(high_target_workers * 1.5), 1, ZYoungGCThreads);
+  AtomicAccess::store(&_initial_young_worker_cap, initial_young_worker_cap);
 
   const double upper_cpu_overhead = MAX2(cpu_metrics._avg_total_gc_cpu_overhead, cpu_metrics._generation_gc_cpu_overhead);
   const double upper_cpu_overhead_error = upper_cpu_overhead - target_cpu_overhead;

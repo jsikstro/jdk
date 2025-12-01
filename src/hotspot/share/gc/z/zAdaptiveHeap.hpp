@@ -66,6 +66,7 @@ struct ZCpuPressureMetrics {
   const double _avg_generation_gc_cpu_overhead;
   const double _avg_total_gc_cpu_overhead;
   const double _avg_gc_interval;
+  const double _avg_process_time;
   const double _gc_time;
   const ZSystemCpuPressureMetrics _machine;
   const ZSystemCpuPressureMetrics _container;
@@ -112,6 +113,7 @@ private:
   static double _accumulated_young_gc_time;
   static ZGenerationOverhead _young_data;
   static ZGenerationOverhead _old_data;
+  static volatile uint _initial_young_worker_cap;
 
   static ZCpuPressureMetrics cpu_pressure_metrics(ZGenerationId generation);
 
@@ -125,6 +127,7 @@ public:
 
   static size_t compute_heap_size(ZHeapResizeMetrics* metrics, ZGenerationId generation);
   static double young_to_old_gc_time();
+  static uint initial_young_worker_cap();
 
   static double uncommit_urgency();
   static uint64_t soft_ref_delay();

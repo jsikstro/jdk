@@ -116,7 +116,7 @@ static uint discrete_young_gc_workers(double gc_workers) {
 static double select_young_gc_workers(const ZDirectorStats& stats, double serial_gc_time, double parallelizable_gc_time, double alloc_rate_sd_percent, double time_until_oom) {
   // Use all workers until we're warm
   if (!stats._old_stats._cycle._is_warm) {
-    const double not_warm_gc_workers = ZYoungGCThreads;
+    const double not_warm_gc_workers = ZAdaptiveHeap::can_adapt() ? 1 : ZYoungGCThreads;
     log_debug(gc, director)("Select Minor GC Workers (Not Warm), GCWorkers: %.3f", not_warm_gc_workers);
     return not_warm_gc_workers;
   }
@@ -800,14 +800,26 @@ static void adjust_gc(const ZDirectorStats& stats) {
   }
 }
 
+static uint soft_initial_young_nworkers(uint proposed_soft_young_workers) {
+  if (!ZAdaptiveHeap::can_adapt()) {
+    return proposed_soft_young_workers;
+  }
+
+  // If the proposed number of workers is obviously going to be above the GC CPU target,
+  // then throttle the thread count instead, and have concurrent heap expansion run while
+  // the GC intentionally misses the heuristic max heap size.
+  return MIN2(ZAdaptiveHeap::initial_young_worker_cap(), proposed_soft_young_workers);
+}
+
 static ZWorkerCounts initial_workers(const ZDirectorStats& stats, ZWorkerSelectionType type) {
   if (!UseDynamicNumberOfGCThreads) {
     return {ZYoungGCThreads, ZOldGCThreads};
   }
 
   const ZDriverRequest soft_request = rule_soft_minor_allocation_rate_dynamic(stats, 0.0 /* serial_gc_time_passed */, 0.0 /* parallel_gc_time_passed */);
+  const uint soft_young_nworkers = soft_initial_young_nworkers(soft_request.young_nworkers());
   const ZDriverRequest hard_request = rule_hard_minor_allocation_rate_dynamic(stats, 0.0 /* serial_gc_time_passed */, 0.0 /* parallel_gc_time_passed */);
-  const uint young_workers = MAX3(1u, soft_request.young_nworkers(), hard_request.young_nworkers());
+  const uint young_workers = MAX3(1u, soft_young_nworkers, hard_request.young_nworkers());
 
   return select_worker_threads(stats, young_workers, type);
 }

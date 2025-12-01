@@ -1659,14 +1659,7 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
 }
 
 void ZPageAllocator::adjust_capacity(size_t used_soon) {
-  // TODO: Machine vs container?
-  const size_t total_memory = os::physical_memory();
-  physical_memory_size_type used_memory = 0;
-  if (!os::used_memory(used_memory)) {
-    // Approximation for strange OS
-    used_memory = os::rss();
-  }
-  const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency(used_memory, total_memory);
+  const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency();
 
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {

@@ -553,12 +553,7 @@ bool ZMemoryWorker::throttle_uncommit(Ticks start) {
   // Linearly scale uncommit speed with uncommit urgency
 
   for (;;) {
-    const size_t total_memory = os::physical_memory();
-    physical_memory_size_type used_memory = 0;
-    if (!os::used_memory(used_memory)) {
-      // TODO: Handle os::used_memory being unavailable.
-    }
-    const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency(used_memory, total_memory);
+    const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency();
 
     const uint64_t intended_delay = 500 * uint64_t(1.0 - uncommit_urgency);
 

@@ -1664,7 +1664,7 @@ void ZPageAllocator::adjust_capacity(size_t used_soon) {
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
 
-    if (uncommit_urgency > 0.0) {
+    if (uncommit_urgency != 0.0) {
       // Uncommit is urgent, or uncommit delay has changed
       ZMemoryWorker& mem_worker = partition->memory_worker();
       mem_worker.critical_shrink_target_capacity();

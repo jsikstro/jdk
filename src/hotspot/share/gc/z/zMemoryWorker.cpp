@@ -555,7 +555,13 @@ bool ZMemoryWorker::throttle_uncommit(Ticks start) {
   for (;;) {
     const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency();
 
-    const uint64_t intended_delay = 500 * uint64_t(1.0 - uncommit_urgency);
+    uint64_t intended_delay;
+
+    if (uncommit_urgency >= 0.0) {
+      intended_delay = 500 * uint64_t(1.0 - uncommit_urgency);
+    } else {
+      intended_delay = (ZUncommitDelay * 1000) * (1.0 - -uncommit_urgency) + 500;
+    }
 
     Ticks end = Ticks::now();
     Tickspan duration = end - start;

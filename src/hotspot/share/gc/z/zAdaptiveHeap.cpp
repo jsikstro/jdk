@@ -745,8 +745,22 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
   // If we aren't low on memory, disable timer based uncommit; let
   // the GC heuristics guide the heap down instead, as part of the
   // natural control system.
-  if (available_fraction > metrics._high_threshold) {
+  if (available_fraction > metrics._concerning_threshold) {
     return 0.0;
+  }
+
+  // If we aren't using a high amount memory, uncommit memory rather slowly
+  // and let the GC heuristics do most of the heavy lifting
+  if (available_fraction > metrics._high_threshold) {
+    // The memory pressure is concerning but not high; gradually siphon the
+    // heap to potential other JVMs that may be under more pressure, allowing
+    // them to grow.
+    // Progression until critical uncommitting starts
+    const double progression = 1.0 - (available_fraction - metrics._high_threshold) / (metrics._concerning_threshold - metrics._high_threshold);
+
+    // Scale the uncommit interval by memory urgency, so the pace of uncommitting
+    // ramps up as the machine resources gets exhausted.
+    return -progression;
   }
 
   // We use a policy where the uncommit delay drops off fairly quickly

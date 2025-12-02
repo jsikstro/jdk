@@ -87,7 +87,7 @@ uint ZAdaptiveHeap::initial_young_worker_cap() {
 
 static bool is_limiting_memory(physical_memory_size_type container_limit, physical_memory_size_type machine_limit) {
   physical_memory_size_type unlimited = physical_memory_size_type(int64_t(-1));
-  return container_limit < machine_limit;
+  return container_limit < machine_limit && container_limit != 0;
 }
 
 static double* generate_factorials(uint64_t max) {
@@ -210,10 +210,11 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     container_high_threshold = 1.0 - double(container_high_memory) / double(container_max_memory);
     container_concerning_threshold = 1.0 - double(container_min_memory) / double(container_max_memory);
   } else {
-    container_max_memory = 0;
-    container_used_memory = 0;
-    container_concerning_threshold = 0.0;
-    container_high_threshold = 0.0;
+    container_max_memory = machine_max_memory;
+    container_used_memory = machine_used_memory;
+    container_concerning_threshold = machine_concerning_threshold;
+    container_high_threshold = machine_high_threshold;
+    container_critical_threshold = machine_critical_threshold;
   }
 
   return {

@@ -776,7 +776,7 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
   // Scale the uncommit interval by memory urgency, so the pace of uncommitting
   // ramps up as the machine resources gets exhausted.
-  return progression * capacity_fraction;
+  return progression;
 }
 
 double ZAdaptiveHeap::uncommit_urgency() {
@@ -909,7 +909,7 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
 
   // Keep below the hard memory limit or the OOM killer will get us
   if (!os::Container::memory_limit(container_max_memory) || !is_limiting_memory(container_max_memory, machine_max_memory)) {
-    container_max_memory = machine_max_memory;
+    container_max_memory = machine_max_capacity;
   }
 
   // Avoid allocating past the throttle limit; the app will become useless here

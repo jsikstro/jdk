@@ -984,7 +984,7 @@ size_t ZPartition::commit(size_t size, size_t limit) {
     ZLocker<ZLock> locker(lock());
     const size_t not_committed = commit_size - total_committed;
     decrease_capacity(not_committed);
-    _page_allocator->truncate_heuristic_max_after_commit_failure();
+    _page_allocator->truncate_heuristic_max_after_capacity_decrease();
 
     // Account for both the node and the page allocator
     decrease_used(not_committed);
@@ -2421,7 +2421,7 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
   _virtual.insert_multi_partition(vmem);
 }
 
-void ZPageAllocator::truncate_heuristic_max_after_commit_failure() {
+void ZPageAllocator::truncate_heuristic_max_after_capacity_decrease() {
   // Adjust heuristic max capacity to ensure GC tries to keep below current capacity
   const size_t capacity = ZPageAllocator::capacity();
   for (;;) {
@@ -2451,7 +2451,7 @@ void ZPageAllocator::free_after_alloc_page_failed(ZPageAllocation* allocation) {
   free_memory_alloc_failed(allocation);
 
   // Try not to commit too much again
-  truncate_heuristic_max_after_commit_failure();
+  truncate_heuristic_max_after_capacity_decrease();
 
   // Keep track of usage
   decrease_used(allocation->size());

@@ -288,7 +288,7 @@ public:
   size_t unused() const;
 
   // Automatic heap sizing
-  void truncate_heuristic_max_after_commit_failure();
+  void truncate_heuristic_max_after_capacity_decrease();
   void adapt_heuristic_max_capacity(ZGenerationId generation);
   void heap_resized(size_t selected_capacity);
   void heap_truncated(size_t selected_capacity);

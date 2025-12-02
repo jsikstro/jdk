@@ -630,6 +630,8 @@ size_t ZMemoryWorker::uncommit(size_t to_uncommit) {
     critical_shrink_target_capacity();
   }
 
+  _partition->_page_allocator->truncate_heuristic_max_after_capacity_decrease();
+
   return flushed;
 }
 

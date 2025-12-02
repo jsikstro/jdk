@@ -409,7 +409,7 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
 
   // Account for the overhead of old generation collections when evaluating
   // the heap efficiency for young generation collections.
-  const double avg_total_gc_cpu_overhead = avg_generation_gc_cpu_overhead / (is_young ? AtomicAccess::load(&_young_to_old_gc_time) : 1.0);
+  const double avg_total_gc_cpu_overhead = MIN2(avg_generation_gc_cpu_overhead / (is_young ? AtomicAccess::load(&_young_to_old_gc_time) : 1.0), 1.0);
 
   return {
     is_containerized,

@@ -731,8 +731,10 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   return heuristic_max_capacity;
 }
 
-static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metrics) {
+static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metrics, size_t capacity) {
   const size_t available_memory = metrics._max_memory - metrics._used_memory;
+
+  const double capacity_fraction = clamp(double(capacity) / double(metrics._used_memory), 0.05, 1.0);
 
   // The remaining memory reserve of the system
   const double available_fraction = double(available_memory) / double(metrics._max_memory);
@@ -760,7 +762,7 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
     // Scale the uncommit interval by memory urgency, so the pace of uncommitting
     // ramps up as the machine resources gets exhausted.
-    return -progression;
+    return -progression * capacity_fraction;
   }
 
   // We use a policy where the uncommit delay drops off fairly quickly
@@ -774,20 +776,21 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
   // Scale the uncommit interval by memory urgency, so the pace of uncommitting
   // ramps up as the machine resources gets exhausted.
-  return progression;
+  return progression * capacity_fraction;
 }
 
 double ZAdaptiveHeap::uncommit_urgency() {
   precond(_initialized);
   ZMemoryPressureMetrics metrics = memory_pressure_metrics();
+  size_t capacity = ZHeap::heap()->capacity();
 
-  double machine_urgency = system_uncommit_urgency(metrics._machine);
+  double machine_urgency = system_uncommit_urgency(metrics._machine, capacity);
 
   if (!metrics._is_containerized) {
     return machine_urgency;
   }
 
-  double container_urgency = system_uncommit_urgency(metrics._container);
+  double container_urgency = system_uncommit_urgency(metrics._container, capacity);
   return MAX2(container_urgency, machine_urgency);
 }
 

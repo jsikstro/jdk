@@ -1959,13 +1959,11 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
   }
 
   // Hard single-partition claiming - start from lowest capacity partition
-  // TODO: This overrides the soft_limit, should it be respected?
   const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
   if (claim_capacity_single_partition(allocation->single_partition_allocation(), lowest_capacity_id, attempt, hard_partition_limit)) {
     return true;
   }
 
-  // TODO: This overrides the soft_limit, should it be respected?
   if (!is_multi_partition_allowed(allocation, attempt, _static_max_capacity)) {
     // Multi-partition claiming is not possible
     return false;
@@ -2014,7 +2012,6 @@ bool ZPageAllocator::claim_capacity_fast_medium(ZPageAllocation* allocation) {
 
   // Hard single-partition claiming - start from lowest capacity partition
   ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
-  // TODO: This overrides the soft_limit, should it be respected?
   const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
   return _partitions.get(lowest_capacity_id).claim_capacity_fast_medium(single_partition_allocation->allocation(), hard_partition_limit);
 }

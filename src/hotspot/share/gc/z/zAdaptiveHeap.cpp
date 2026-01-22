@@ -249,13 +249,14 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 
   const double concerning = metrics._concerning_threshold;
   const double high = metrics._high_threshold;
+  const double critical = metrics._critical_threshold;
 
   if (availability < high) {
     // When memory pressure is "high", we exponentially scale up memory pressure,
     // from the already "high" pressure induced by "concerning" memory pressure.
-    const double progression = 1.0 - availability / high;
-    const double exponent = 1.0 + progression * pressure_rate;
-    return pressure_rate + pow(pressure_rate, exponent);
+    const double progression = 1.0 - (availability - critical) / (high - critical);
+    const double exponent = 1.0 + progression;
+    return pow(pressure_rate, exponent);
   }
 
   if (availability < concerning) {
@@ -271,7 +272,6 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 }
 
 double ZAdaptiveHeap::compute_memory_pressure(const ZMemoryPressureMetrics& metrics) {
-  precond(_initialized);
   double result = system_memory_pressure(metrics._machine, metrics._unscaled_gc_pressure);
 
   if (metrics._is_containerized) {
@@ -289,8 +289,6 @@ static bool is_system_memory_pressure_concerning(const ZSystemMemoryPressureMetr
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_concerning(const ZMemoryPressureMetrics& metrics) {
-  precond(_initialized);
-
   if (is_system_memory_pressure_concerning(metrics._machine)) {
     return true;
   }
@@ -310,8 +308,6 @@ static bool is_system_memory_pressure_high(const ZSystemMemoryPressureMetrics& m
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_high(const ZMemoryPressureMetrics& metrics) {
-  precond(_initialized);
-
   if (is_system_memory_pressure_high(metrics._machine)) {
     return true;
   }
@@ -331,8 +327,6 @@ static bool is_system_memory_pressure_critical(const ZSystemMemoryPressureMetric
 }
 
 bool ZAdaptiveHeap::is_memory_pressure_critical(const ZMemoryPressureMetrics& metrics) {
-  precond(_initialized);
-
   if (is_system_memory_pressure_critical(metrics._machine)) {
     return true;
   }

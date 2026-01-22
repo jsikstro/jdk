@@ -81,6 +81,7 @@ struct ZResourcePressure {
 };
 
 class ZAdaptiveHeap : public AllStatic {
+  friend class ZAdaptiveHeapTest;
 private:
   static bool _explicit_max_capacity;
   static bool _can_adapt;

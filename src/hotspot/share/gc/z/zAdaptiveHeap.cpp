@@ -425,6 +425,11 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
 }
 
 static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
+  // As memory pressure gets high, heap must be pressed down
+  if (is_system_memory_pressure_high(mem_metrics)) {
+    return 1.0;
+  }
+
   const double process_memory_usage_ratio = clamp(double(process_used_memory) / double(mem_metrics._used_memory), 0.0, 1.0);
 
   const double process_cpu_usage_ratio = cpu_metrics._avg_process_load / cpu_metrics._avg_system_load;
@@ -451,7 +456,23 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
 
   // Balance the forces of resource share imbalance across processes with the
   // forces of system level resource usage imbalance.
-  return process_cpu_pressure * system_cpu_pressure;
+  double cpu_vs_memory_pressure = process_cpu_pressure * system_cpu_pressure;
+
+  if (cpu_vs_memory_pressure >= 1.0) {
+    return cpu_vs_memory_pressure;
+  }
+
+  // As memory pressure gets higher, heap must be pressed down
+  if (!is_system_memory_pressure_concerning(mem_metrics)) {
+    return cpu_vs_memory_pressure;
+  }
+
+  // Calculate concerning progression towards high
+  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
+  const double progression = 1.0 - (availability - mem_metrics._high_threshold) / (mem_metrics._concerning_threshold - mem_metrics._high_threshold);
+
+  // Scale back to 1 as we approach high mem pressure
+  return cpu_vs_memory_pressure + (1.0 - cpu_vs_memory_pressure) * progression;
 }
 
 static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {

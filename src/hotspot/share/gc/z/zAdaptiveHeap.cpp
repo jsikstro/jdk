@@ -482,7 +482,7 @@ static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_m
     return machine_cpu_pressure;
   }
 
-  const double container_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
+  const double container_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._container, cpu_metrics._container, process_used_memory);
   return MAX2(container_cpu_pressure, machine_cpu_pressure);
 }
 

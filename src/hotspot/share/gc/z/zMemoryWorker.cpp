@@ -558,8 +558,10 @@ bool ZMemoryWorker::throttle_uncommit(Ticks start) {
     uint64_t intended_delay;
 
     if (uncommit_urgency >= 0.0) {
+      // Critical pressure throttling; react swiftly
       intended_delay = 500 * uint64_t(1.0 - uncommit_urgency);
     } else {
+      // Concerning pressure throttling; react slower
       intended_delay = (ZUncommitDelay * 1000) * (1.0 - -uncommit_urgency) + 500;
     }
 

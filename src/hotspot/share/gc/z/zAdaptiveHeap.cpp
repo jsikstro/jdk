@@ -281,6 +281,11 @@ double ZAdaptiveHeap::compute_memory_pressure(const ZMemoryPressureMetrics& metr
   return result;
 }
 
+// Calculate progression from 0 to 1 going down from a less critical availability to a more critical availability
+static double calculate_progression(double availability, double from, double to) {
+  return 1.0 - (availability - to) / (from - to);
+}
+
 static bool is_system_memory_pressure_concerning(const ZSystemMemoryPressureMetrics& metrics) {
   const physical_memory_size_type available_memory = metrics._max_memory - metrics._used_memory;
   const double availability = double(available_memory) / double(metrics._max_memory);
@@ -424,12 +429,31 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   };
 }
 
-static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
+static double mem_urgency_scaled_cpu_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, double cpu_pressure) {
   // As memory pressure gets high, heap must be pressed down
   if (is_system_memory_pressure_high(mem_metrics)) {
     return 1.0;
   }
 
+
+  if (cpu_pressure >= 1.0) {
+    return cpu_pressure;
+  }
+
+  // As memory pressure gets higher, heap must be pressed down
+  if (!is_system_memory_pressure_concerning(mem_metrics)) {
+    return cpu_pressure;
+  }
+
+  // Calculate concerning progression towards high
+  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
+  const double progression = calculate_progression(availability, mem_metrics._concerning_threshold, mem_metrics._high_threshold);
+
+  // Scale back to 1 as we approach high mem pressure
+  return cpu_pressure + (1.0 - cpu_pressure) * progression;
+}
+
+static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
   const double process_memory_usage_ratio = clamp(double(process_used_memory) / double(mem_metrics._used_memory), 0.0, 1.0);
 
   const double process_cpu_usage_ratio = cpu_metrics._avg_process_load / cpu_metrics._avg_system_load;
@@ -456,23 +480,11 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
 
   // Balance the forces of resource share imbalance across processes with the
   // forces of system level resource usage imbalance.
-  double cpu_vs_memory_pressure = process_cpu_pressure * system_cpu_pressure;
+  const double cpu_vs_memory_pressure = process_cpu_pressure * system_cpu_pressure;
 
-  if (cpu_vs_memory_pressure >= 1.0) {
-    return cpu_vs_memory_pressure;
-  }
-
-  // As memory pressure gets higher, heap must be pressed down
-  if (!is_system_memory_pressure_concerning(mem_metrics)) {
-    return cpu_vs_memory_pressure;
-  }
-
-  // Calculate concerning progression towards high
-  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
-  const double progression = 1.0 - (availability - mem_metrics._high_threshold) / (mem_metrics._concerning_threshold - mem_metrics._high_threshold);
-
-  // Scale back to 1 as we approach high mem pressure
-  return cpu_vs_memory_pressure + (1.0 - cpu_vs_memory_pressure) * progression;
+  // Make sure that as memory availability drops, memory pressure starts to
+  // dominate the overall GC pressure; without memory the JVM dies.
+  return mem_urgency_scaled_cpu_pressure(mem_metrics, cpu_vs_memory_pressure);
 }
 
 static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
@@ -500,11 +512,29 @@ static double compute_cpu_vs_latency_pressure(const ZSystemCpuPressureMetrics& m
   return 1.0 / MIN2(p99_response_time_scaling, 5.0);
 }
 
+static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics) {
+  const double machine_cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(cpu_metrics._machine);
+
+  // Make sure that as machine memory availability drops, memory pressure starts to
+  // dominate the overall GC pressure; without memory the JVM dies.
+  const double machine_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._machine, machine_cpu_vs_latency_pressure);
+
+  if (!mem_metrics._is_containerized) {
+    return machine_scaled_pressure;
+  }
+
+  // Make sure that as container availability drops, memory pressure starts to
+  // dominate the overall GC pressure; without memory the JVM dies.
+  const double container_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._container, machine_cpu_vs_latency_pressure);
+
+  return MAX2(machine_scaled_pressure, container_scaled_pressure);
+}
+
 ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, size_t projected_process_used_memory) {
   precond(_initialized);
   const double mem_pressure = compute_memory_pressure(mem_metrics);
   const double cpu_vs_memory_pressure = compute_cpu_vs_memory_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
-  const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(cpu_metrics._machine);
+  const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(mem_metrics, cpu_metrics);
   const double cpu_pressure = MIN2(cpu_vs_memory_pressure, cpu_vs_latency_pressure);
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
@@ -773,7 +803,7 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
     // heap to potential other JVMs that may be under more pressure, allowing
     // them to grow.
     // Progression until critical uncommitting starts
-    const double progression = 1.0 - (available_fraction - metrics._high_threshold) / (metrics._concerning_threshold - metrics._high_threshold);
+    const double progression = calculate_progression(available_fraction, metrics._concerning_threshold, metrics._high_threshold);
 
     // Scale the uncommit interval by memory urgency, so the pace of uncommitting
     // ramps up as the machine resources gets exhausted.
@@ -787,13 +817,16 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
   // will commence.
 
   // Progression until critical uncommitting starts
-  const double progression = 1.0 - (available_fraction - metrics._critical_threshold) / (metrics._high_threshold - metrics._critical_threshold);
+  const double progression = calculate_progression(available_fraction, metrics._high_threshold, metrics._critical_threshold);
 
   // Scale the uncommit interval by memory urgency, so the pace of uncommitting
   // ramps up as the machine resources gets exhausted.
   return progression;
 }
 
+// The urgency in uncommitting memory. Positive numbers scale from 0 to 1 and are used
+// for emergency situations, while negative numbers are less urgent and represent
+// uncommit throttling when memory levels are only concerning.
 double ZAdaptiveHeap::uncommit_urgency() {
   precond(_initialized);
   ZMemoryPressureMetrics metrics = memory_pressure_metrics();

@@ -133,13 +133,13 @@ static double cpu_latency_factor(int c, double rho, double unluckyness, int max_
 ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   precond(_initialized);
   const double unscaled_gc_pressure = AtomicAccess::load(&ZGCPressure);
-  const bool is_containerized = os::is_containerized();
 
   const physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
   physical_memory_size_type machine_used_memory;
   physical_memory_size_type machine_compressed_memory;
   if (!os::Machine::used_memory(machine_used_memory)) {
     // Approximation for faulty OS
+    assert(false, "Why would this ever happen?");
     machine_used_memory = os::rss();
   }
   if (os::compressed_memory(machine_compressed_memory)) {
@@ -174,16 +174,16 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   double container_concerning_threshold;
   double container_high_threshold;
   double container_critical_threshold;
-  if (is_containerized) {
-    if (!os::Container::used_memory(container_used_memory)) {
-      // Approximation for faulty OS
-      container_used_memory = os::rss();
-    }
 
+  const bool can_read_container_memory = os::is_containerized() && os::Container::used_memory(container_used_memory);
+  bool has_container_limit = false;
+  if (can_read_container_memory) {
     physical_memory_size_type container_critical_memory;
 
     // Allocation stalls at critical levels
-    if (!os::Container::memory_limit(container_max_memory) || !is_limiting_memory(container_max_memory, machine_max_memory)) {
+    if (os::Container::memory_limit(container_max_memory) && is_limiting_memory(container_max_memory, machine_max_memory)) {
+      has_container_limit = true;
+    } else {
       container_max_memory = machine_max_memory;
     }
 
@@ -193,6 +193,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
       container_max_memory = MIN2(container_max_memory, container_high_memory);
       container_critical_memory = container_max_memory;
       container_high_memory = MIN2(container_high_memory, container_critical_memory) * (medium_avoid / near_avoid);
+      has_container_limit = true;
     } else {
       container_critical_memory = near_avoid * container_max_memory;
       container_high_memory = container_critical_memory * (medium_avoid / near_avoid);
@@ -202,6 +203,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     physical_memory_size_type container_min_memory;
     if (os::Container::memory_soft_limit(container_min_memory) && is_limiting_memory(container_min_memory, machine_max_memory)) {
       container_min_memory = MIN2(container_min_memory, physical_memory_size_type(container_high_memory * (far_avoid / medium_avoid)));
+      has_container_limit = true;
     } else {
       container_min_memory = physical_memory_size_type(container_high_memory * (far_avoid / medium_avoid));
     }
@@ -209,7 +211,11 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     container_critical_threshold = 1.0 - double(container_critical_memory) / double(container_max_memory);
     container_high_threshold = 1.0 - double(container_high_memory) / double(container_max_memory);
     container_concerning_threshold = 1.0 - double(container_min_memory) / double(container_max_memory);
-  } else {
+  }
+
+  bool is_containerized = can_read_container_memory && has_container_limit;
+
+  if (!is_containerized) {
     container_max_memory = machine_max_memory;
     container_used_memory = machine_used_memory;
     container_concerning_threshold = machine_concerning_threshold;
@@ -347,20 +353,34 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   const bool is_young = generation == ZGenerationId::young;
   ZGenerationOverhead& generation_data = is_young ? _young_data : _old_data;
 
-  const bool is_containerized = os::is_containerized();
-
   // Time metrics
   const double machine_system_time_last = generation_data._last_machine_system_time;
   const double container_system_time_last = generation_data._last_container_system_time;
   // Note that the system time might have poor accuracy early on; it typically
   // has 100 ms granularity. So take it with a large grain of salt early on...
   const double machine_system_time_now = os::Machine::elapsed_system_cpu_time();
-  double container_system_time_now;
-  if (!is_containerized || !os::Container::elapsed_system_cpu_time(container_system_time_now)) {
-    container_system_time_now = machine_system_time_now;
-  }
   const double machine_system_time = machine_system_time_now - machine_system_time_last;
-  const double container_system_time = container_system_time_now - container_system_time_last;
+
+  const double machine_ncpus = os::Machine::active_processor_count();
+
+  double container_system_time_now;
+  double container_ncpus;
+
+  const bool can_read_container_usage = os::is_containerized() && os::Container::elapsed_system_cpu_time(container_system_time_now);
+  bool has_container_limit = false;
+  if (can_read_container_usage) {
+    const double container_system_time = container_system_time_now - container_system_time_last;
+    generation_data._container_system_times.add(container_system_time);
+
+    if (os::Container::processor_count(container_ncpus) && container_ncpus < double(machine_ncpus)) {
+      has_container_limit = true;
+    } else {
+      container_ncpus = machine_ncpus;
+    }
+  }
+
+  const bool is_containerized = can_read_container_usage && has_container_limit;
+
   const double time_now = os::elapsedTime();
   const double time_last = generation_data._last_time;
   const double time_since_last = time_now - time_last;
@@ -368,14 +388,12 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   generation_data._last_container_system_time = container_system_time_now;
   generation_data._last_time = time_now;
 
-  double machine_ncpus = os::Machine::active_processor_count();
-  double container_ncpus;
-  if (!is_containerized || !os::Container::processor_count(container_ncpus)) {
+  if (!is_containerized) {
+    container_system_time_now = machine_system_time_now;
     container_ncpus = machine_ncpus;
   }
 
   generation_data._machine_system_times.add(machine_system_time);
-  generation_data._container_system_times.add(container_system_time);
 
   ZStatCycleStats cycle_stats = ZGeneration::generation(generation)->stat_cycle()->stats();
   const double gc_time = cycle_stats._last_total_vtime + (is_young ? 0.0 : _accumulated_young_gc_time);
@@ -453,6 +471,25 @@ static double mem_urgency_scaled_cpu_pressure(const ZSystemMemoryPressureMetrics
   return cpu_pressure + (1.0 - cpu_pressure) * progression;
 }
 
+static double mem_urgency_scaled_gc_interval(const ZSystemMemoryPressureMetrics& mem_metrics, double gc_interval) {
+  // As memory pressure gets high, heap must be pressed down
+  if (is_system_memory_pressure_high(mem_metrics)) {
+    return 0.0;
+  }
+
+  // As memory pressure gets higher, heap must be pressed down
+  if (!is_system_memory_pressure_concerning(mem_metrics)) {
+    return gc_interval;
+  }
+
+  // Calculate concerning progression towards high
+  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
+  const double progression = calculate_progression(availability, mem_metrics._concerning_threshold, mem_metrics._high_threshold);
+
+  // Scale back to 0 as we approach high mem pressure
+  return gc_interval * (1.0 - progression);
+}
+
 static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, const ZSystemCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
   const double process_memory_usage_ratio = clamp(double(process_used_memory) / double(mem_metrics._used_memory), 0.0, 1.0);
 
@@ -490,7 +527,7 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
 static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
   const double machine_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
 
-  if (!cpu_metrics._is_containerized) {
+  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
     return machine_cpu_pressure;
   }
 
@@ -519,7 +556,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   // dominate the overall GC pressure; without memory the JVM dies.
   const double machine_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._machine, machine_cpu_vs_latency_pressure);
 
-  if (!mem_metrics._is_containerized) {
+  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
     return machine_scaled_pressure;
   }
 
@@ -556,6 +593,37 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
     cpu_vs_memory_pressure,
     cpu_vs_latency_pressure
   };
+}
+
+static double compute_target_gc_interval(const ZSystemMemoryPressureMetrics& mem_metrics,
+                                         const ZSystemCpuPressureMetrics& cpu_metrics,
+                                         const double unscaled_gc_pressure) {
+  // High GC frequencies lead to extra overheads such as barrier storms
+  // Therefore, we add a factor that ensures there is at least some social
+  // distancing between GCs, even when the GC overhead is small. The size of
+  // the factor scales with the level of load induced on the machine.
+  const double min_fully_loaded_gc_interval = 5.0 / unscaled_gc_pressure;
+  const double min_gc_interval = min_fully_loaded_gc_interval / 4.0;
+  const double target_gc_interval = MAX2(min_gc_interval, cpu_metrics._avg_process_load * min_fully_loaded_gc_interval);
+
+  // As memory depletes, scale down the GC interval towards 0, letting CPU
+  // and importantly memory be the deciding factor to shrink the heap.
+  return mem_urgency_scaled_gc_interval(mem_metrics, target_gc_interval);
+}
+
+static double compute_target_gc_interval(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics) {
+  const double machine_target_gc_interval = compute_target_gc_interval(mem_metrics._machine,
+                                                                       cpu_metrics._machine,
+                                                                       mem_metrics._unscaled_gc_pressure);
+
+  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
+    return machine_target_gc_interval;
+  }
+
+  const double container_target_gc_interval = compute_target_gc_interval(mem_metrics._container,
+                                                                         cpu_metrics._container,
+                                                                         mem_metrics._unscaled_gc_pressure);
+  return MIN2(machine_target_gc_interval, container_target_gc_interval);
 }
 
 // Logistic function, produces values in the range 0 - 1 in an S shape
@@ -658,18 +726,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   const double lower_cpu_overhead = MIN2(cpu_metrics._avg_total_gc_cpu_overhead, cpu_metrics._generation_gc_cpu_overhead);
   const double lower_cpu_overhead_error = lower_cpu_overhead - target_cpu_overhead;
 
-  // High GC frequencies lead to extra overheads such as barrier storms
-  // Therefore, we add a factor that ensures there is at least some social
-  // distancing between GCs, even when the GC overhead is small. The size of
-  // the factor scales with the level of load induced on the machine.
-  const double min_fully_loaded_gc_interval = 5.0 / mem_metrics._unscaled_gc_pressure;
-  const double min_gc_interval = min_fully_loaded_gc_interval / 4.0 / mem_pressure;
-  const double machine_target_gc_interval = MAX2(min_gc_interval, cpu_metrics._machine._avg_process_load * min_fully_loaded_gc_interval);
-  double target_gc_interval = machine_target_gc_interval;
-  if (cpu_metrics._is_containerized) {
-    const double container_target_gc_interval = MAX2(min_gc_interval, cpu_metrics._container._avg_process_load * min_fully_loaded_gc_interval);
-    target_gc_interval = MIN2(container_target_gc_interval, machine_target_gc_interval);
-  }
+  const double target_gc_interval = compute_target_gc_interval(mem_metrics, cpu_metrics);
   const double gc_interval_error = MAX2(target_gc_interval - avg_time_since_last, target_gc_interval - cpu_metrics._avg_gc_interval);
 
   const double upper_error_signal = MAX2(upper_cpu_overhead_error, gc_interval_error);
@@ -706,12 +763,14 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   const double cpu_vs_memory_pressure = pressures._cpu_vs_memory_pressure;
   const double cpu_vs_latency_pressure = pressures._cpu_vs_latency_pressure;
 
-  if (cpu_metrics._is_containerized) {
+  if (mem_metrics._is_containerized) {
     log_info(gc, load)("Container: System Memory Load: %.1f%%, Process Memory Load: %.1f%%, Heap Memory Load: %.1f%%",
                        double(mem_metrics._container._used_memory) / double(mem_metrics._container._max_memory) * 100.0,
                        double(projected_process_used_memory) / double(mem_metrics._container._max_memory) * 100.0,
                        double(heuristic_max_capacity) / double(mem_metrics._container._max_memory) * 100.0);
+  }
 
+  if (cpu_metrics._is_containerized) {
     log_info(gc, load)("Container: System CPU Load: %.1f%%, Process CPU Load: %.1f%%, GC CPU Load: %.1f%%",
                        cpu_metrics._container._avg_system_load * 100.0, cpu_metrics._container._avg_process_load * 100.0,
                        cpu_metrics._avg_total_gc_cpu_overhead * cpu_metrics._container._avg_process_load * 100.0);
@@ -949,8 +1008,10 @@ size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
   physical_memory_size_type container_max_memory;
   physical_memory_size_type container_used_memory;
   if (!os::Container::used_memory(container_used_memory)) {
-    // Approximation for faulty OS
-    container_used_memory = os::rss();
+    // If we can't measure memory usage in the container, we also can not compare
+    // it to any container limits. Effectively, the JVM is not appropriately
+    // containerized, so use machine max capacity.
+    return machine_max_capacity;
   }
 
   physical_memory_size_type container_critical_memory;

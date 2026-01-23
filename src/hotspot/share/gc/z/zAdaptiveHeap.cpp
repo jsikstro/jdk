@@ -135,6 +135,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   const double unscaled_gc_pressure = AtomicAccess::load(&ZGCPressure);
 
   const physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
+
   physical_memory_size_type machine_used_memory;
   physical_memory_size_type machine_compressed_memory;
   if (!os::Machine::used_memory(machine_used_memory)) {
@@ -278,13 +279,14 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 }
 
 double ZAdaptiveHeap::compute_memory_pressure(const ZMemoryPressureMetrics& metrics) {
-  double result = system_memory_pressure(metrics._machine, metrics._unscaled_gc_pressure);
+  const double machine_mem_pressure = system_memory_pressure(metrics._machine, metrics._unscaled_gc_pressure);
 
-  if (metrics._is_containerized) {
-    result = MAX2(result, system_memory_pressure(metrics._container, metrics._unscaled_gc_pressure));
+  if (!metrics._is_containerized) {
+    return machine_mem_pressure;
   }
 
-  return result;
+  const double container_mem_pressure = system_memory_pressure(metrics._container, metrics._unscaled_gc_pressure);
+  return MAX2(machine_mem_pressure, container_mem_pressure);
 }
 
 // Calculate progression from 0 to 1 going down from a less critical availability to a more critical availability
@@ -448,14 +450,13 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
 }
 
 static double mem_urgency_scaled_cpu_pressure(const ZSystemMemoryPressureMetrics& mem_metrics, double cpu_pressure) {
+  if (cpu_pressure >= 1.0) {
+    return cpu_pressure;
+  }
+
   // As memory pressure gets high, heap must be pressed down
   if (is_system_memory_pressure_high(mem_metrics)) {
     return 1.0;
-  }
-
-
-  if (cpu_pressure >= 1.0) {
-    return cpu_pressure;
   }
 
   // As memory pressure gets higher, heap must be pressed down
@@ -464,7 +465,7 @@ static double mem_urgency_scaled_cpu_pressure(const ZSystemMemoryPressureMetrics
   }
 
   // Calculate concerning progression towards high
-  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
+  const double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
   const double progression = calculate_progression(availability, mem_metrics._concerning_threshold, mem_metrics._high_threshold);
 
   // Scale back to 1 as we approach high mem pressure
@@ -483,7 +484,7 @@ static double mem_urgency_scaled_gc_interval(const ZSystemMemoryPressureMetrics&
   }
 
   // Calculate concerning progression towards high
-  double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
+  const double availability = 1.0 - double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
   const double progression = calculate_progression(availability, mem_metrics._concerning_threshold, mem_metrics._high_threshold);
 
   // Scale back to 0 as we approach high mem pressure
@@ -562,6 +563,9 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
 
   // Make sure that as container availability drops, memory pressure starts to
   // dominate the overall GC pressure; without memory the JVM dies.
+  // Note that using the machine CPU vs latency pressure here is intentional;
+  // the probability of getting placed in a run queue is on machine level,
+  // not on the container level.
   const double container_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._container, machine_cpu_vs_latency_pressure);
 
   return MAX2(machine_scaled_pressure, container_scaled_pressure);

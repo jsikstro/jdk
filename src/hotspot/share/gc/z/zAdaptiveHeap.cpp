@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -507,14 +507,12 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   // The GC pressure is scaled by what portion of system CPU resources are being
   // used. As CPU utilization of the machine gets higher, there will be more
   // fighting between mutator threads for CPU time, affecting latencies.
-  // Then we want GC to increasingly stay out of the way. If the process is
-  // using much of the CPU resources, don't bother trying to squish the
-  // heap too much. In fact, then we can conversely increase the heap size
-  // so that CPU can decrease a bit, avoiding latency issues due to too high
-  // CPU utilization, to some reasonable limit.
-  const double responsive_system_cpu_usage = cpu_metrics._avg_system_load / ZCPUConcerningThreshold; // TODO: Compute ZCPUConcerningThreshold?
+  // This concern is ignored here - this heuristic is purely reasoning about
+  // the CPU vs memory resource availabilities. A separate cpu_vs_latency
+  // calculation estimates the latency impact of too high CPU, and adjusts.
+  const double system_cpu_usage = cpu_metrics._avg_system_load;
   const double system_memory_usage = double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
-  const double system_cpu_pressure = 1.0 / (1.0 + clamp(responsive_system_cpu_usage - system_memory_usage, -0.1, 1.0));
+  const double system_cpu_pressure = 1.0 / (1.0 + clamp(system_cpu_usage - system_memory_usage, -0.1, 1.0));
 
   // Balance the forces of resource share imbalance across processes with the
   // forces of system level resource usage imbalance.
@@ -528,12 +526,12 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
 static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, physical_memory_size_type process_used_memory) {
   const double machine_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._machine, cpu_metrics._machine, process_used_memory);
 
-  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
+  if (!mem_metrics._is_containerized && !cpu_metrics._is_containerized) {
     return machine_cpu_pressure;
   }
 
   const double container_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._container, cpu_metrics._container, process_used_memory);
-  return MAX2(container_cpu_pressure, machine_cpu_pressure);
+  return (container_cpu_pressure + machine_cpu_pressure) * 0.5;
 }
 
 static double compute_cpu_vs_latency_pressure(const ZSystemCpuPressureMetrics& machine_cpu_metrics) {
@@ -557,7 +555,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   // dominate the overall GC pressure; without memory the JVM dies.
   const double machine_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._machine, machine_cpu_vs_latency_pressure);
 
-  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
+  if (!mem_metrics._is_containerized && !cpu_metrics._is_containerized) {
     return machine_scaled_pressure;
   }
 
@@ -568,7 +566,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   // not on the container level.
   const double container_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._container, machine_cpu_vs_latency_pressure);
 
-  return MAX2(machine_scaled_pressure, container_scaled_pressure);
+  return MIN2(machine_scaled_pressure, container_scaled_pressure);
 }
 
 ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, size_t projected_process_used_memory) {
@@ -576,7 +574,7 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
   const double mem_pressure = compute_memory_pressure(mem_metrics);
   const double cpu_vs_memory_pressure = compute_cpu_vs_memory_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
   const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(mem_metrics, cpu_metrics);
-  const double cpu_pressure = (cpu_vs_memory_pressure + cpu_vs_latency_pressure) * 0.5;
+  const double cpu_pressure = cpu_vs_memory_pressure * cpu_vs_latency_pressure;
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
   const double pressure = mem_pressure * cpu_pressure;
@@ -620,7 +618,7 @@ static double compute_target_gc_interval(const ZMemoryPressureMetrics& mem_metri
                                                                        cpu_metrics._machine,
                                                                        mem_metrics._unscaled_gc_pressure);
 
-  if (!mem_metrics._is_containerized || !cpu_metrics._is_containerized) {
+  if (!mem_metrics._is_containerized && !cpu_metrics._is_containerized) {
     return machine_target_gc_interval;
   }
 

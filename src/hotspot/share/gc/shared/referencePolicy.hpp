@@ -56,28 +56,28 @@ class AlwaysClearPolicy : public ReferencePolicy {
   }
 };
 
-class AbstractLRUReferencePolicy : public ReferencePolicy {
+class LRUCurrentHeapPolicy : public ReferencePolicy {
  private:
-  jlong _max_interval = -1;
-
- protected:
-  void set_max_interval(jlong max_interval);
+  jlong _max_interval;
 
  public:
-  void setup() override { ShouldNotCallThis(); }
-  bool should_clear_reference(oop p, jlong timestamp_clock) final;
+  LRUCurrentHeapPolicy();
+
+  // Capture state (of-the-VM) information needed to evaluate the policy
+  void setup();
+  virtual bool should_clear_reference(oop p, jlong timestamp_clock);
 };
 
-class LRUCurrentHeapPolicy : public AbstractLRUReferencePolicy {
- public:
-  // Capture state (of-the-VM) information needed to evaluate the policy
-  void setup() final;
-};
+class LRUMaxHeapPolicy : public ReferencePolicy {
+ private:
+  jlong _max_interval;
 
-class LRUMaxHeapPolicy : public AbstractLRUReferencePolicy {
  public:
+  LRUMaxHeapPolicy();
+
   // Capture state (of-the-VM) information needed to evaluate the policy
-  void setup() final;
+  void setup();
+  virtual bool should_clear_reference(oop p, jlong timestamp_clock);
 };
 
 #endif // SHARE_GC_SHARED_REFERENCEPOLICY_HPP

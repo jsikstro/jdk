@@ -64,8 +64,6 @@ public:
   void request_resize_workers(uint nworkers);
 
   bool should_worker_resize();
-
-  void add_accumulated_vtime(double vtime);
 };
 
 #endif // SHARE_GC_Z_ZWORKERS_HPP

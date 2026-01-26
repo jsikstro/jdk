@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020, 2025, Red Hat Inc.
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -378,8 +378,8 @@ void CgroupV2MemoryController::print_version_specific_info(outputStream* st, phy
   if (memory_swap_limit_value(reader(), swap_limit_val)) {
     swap_limit.set_value(swap_limit_val);
   }
-  OSContainer::print_container_helper(st, swap_current, "memory_swap_current_in_bytes");
-  OSContainer::print_container_helper(st, swap_limit, "memory_swap_max_limit_in_bytes");
+  OSContainer::print_container_helper(st, swap_current, "memory_swap_current");
+  OSContainer::print_container_helper(st, swap_limit, "memory_swap_max_limit");
 }
 
 char* CgroupV2Controller::construct_path(char* mount_path, const char* cgroup_path) {

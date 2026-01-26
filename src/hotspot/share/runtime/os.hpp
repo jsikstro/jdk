@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -293,7 +293,6 @@ class os: AllStatic {
   static jlong elapsed_frequency();
 
   static double elapsed_process_cpu_time();
-  static double elapsed_system_cpu_time();
 
   // Return current local time in a string (YYYY-MM-DD HH:MM:SS).
   // It is MT safe, but not async-safe, as reading time zone
@@ -335,7 +334,6 @@ class os: AllStatic {
   [[nodiscard]] static bool available_memory(physical_memory_size_type& value);
   [[nodiscard]] static bool used_memory(physical_memory_size_type& value);
   [[nodiscard]] static bool free_memory(physical_memory_size_type& value);
-  [[nodiscard]] static bool compressed_memory(physical_memory_size_type& value);
 
   [[nodiscard]] static bool total_swap_space(physical_memory_size_type& value);
   [[nodiscard]] static bool free_swap_space(physical_memory_size_type& value);
@@ -358,7 +356,6 @@ class os: AllStatic {
   class Machine : AllStatic {
   public:
     static int active_processor_count();
-    static double elapsed_system_cpu_time();
 
     [[nodiscard]] static bool available_memory(physical_memory_size_type& value);
     [[nodiscard]] static bool used_memory(physical_memory_size_type& value);
@@ -374,11 +371,11 @@ class os: AllStatic {
   // (currently only cgroup-based Linux runtimes). If the process is running inside a
   // containerized environment, methods from this class report the effective limits imposed
   // by the container, which may be more restrictive than what os::Machine reports.
-  // These methods are not safe to use unless `os::is_containerized()` is true.
+  // Methods return true and set the out-parameter if a limit is found,
+  // or false if no limit exists or it cannot be determined.
   class Container : AllStatic {
   public:
     [[nodiscard]] static bool processor_count(double& value); // Returns the core-equivalent CPU quota
-    [[nodiscard]] static bool elapsed_system_cpu_time(double& value);
 
     [[nodiscard]] static bool available_memory(physical_memory_size_type& value);
     [[nodiscard]] static bool used_memory(physical_memory_size_type& value);
@@ -439,6 +436,8 @@ class os: AllStatic {
   static jint set_minimum_stack_sizes();
 
  public:
+  // get allowed minimum java stack size
+  static jlong get_minimum_java_stack_size();
   // Find committed memory region within specified range (start, start + size),
   // return true if found any
   static bool committed_in_range(address start, size_t size, address& committed_start, size_t& committed_size);
@@ -583,6 +582,7 @@ class os: AllStatic {
   static void   realign_memory(char *addr, size_t bytes, size_t alignment_hint);
 
   // NUMA-specific interface
+  static void   numa_set_thread_affinity(Thread* thread, int node);
   static void   numa_make_local(char *addr, size_t bytes, int lgrp_hint);
   static void   numa_make_global(char *addr, size_t bytes);
   static size_t numa_get_groups_num();
@@ -1028,10 +1028,7 @@ class os: AllStatic {
   // The thread_cpu_time() and current_thread_cpu_time() are only
   // supported if is_thread_cpu_time_supported() returns true.
 
-  // Thread CPU Time - return the fast estimate on a platform
-  // On Linux   - fast clock_gettime where available - user+sys
-  //            - otherwise: very slow /proc fs - user+sys
-  // On Windows - GetThreadTimes - user+sys
+  // Thread CPU Time - return the fast estimate on a platform - user+sys
   static jlong current_thread_cpu_time();
   static jlong thread_cpu_time(Thread* t);
 

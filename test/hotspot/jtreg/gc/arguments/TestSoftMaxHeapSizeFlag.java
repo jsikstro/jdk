@@ -41,10 +41,10 @@ public class TestSoftMaxHeapSizeFlag {
     private static final long betweenXmsAndXmx = (Xms + Xmx) / 2;
 
     public static void main(String args[]) throws Exception {
-        // Test default value; expect 0 or Xmx
+        // Test default value
         ProcessTools.executeTestJava("-Xms" + Xms, "-Xmx" + Xmx,
                                      "-XX:+PrintFlagsFinal", "-version")
-                    .shouldMatch("(SoftMaxHeapSize[ ]+=[ ]+" + 0 + ")|(SoftMaxHeapSize[ ]+=[ ]+" + Xmx + ")")
+                    .shouldMatch("SoftMaxHeapSize[ ]+=[ ]+" + Xmx)
                     .shouldHaveExitValue(0);
 
         // Test setting small value

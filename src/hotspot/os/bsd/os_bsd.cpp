@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -170,22 +170,6 @@ bool os::Bsd::available_memory(physical_memory_size_type& value) {
 #endif
   value = available;
   return true;
-}
-
-bool os::Bsd::compressed_memory(physical_memory_size_type& value) {
-#ifdef __APPLE__
-  mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
-  vm_statistics64_data_t vmstat;
-  kern_return_t kerr = host_statistics64(mach_host_self(), HOST_VM_INFO64,
-                                         (host_info64_t)&vmstat, &count);
-  assert(kerr == KERN_SUCCESS,
-         "host_statistics64 failed - check mach_host_self() and count");
-  if (kerr == KERN_SUCCESS) {
-    value = vmstat.compressor_page_count * os::vm_page_size();
-    return true;
-  }
-#endif
-  return false;
 }
 
 // for more info see :
@@ -644,7 +628,7 @@ static void *thread_native_entry(Thread *thread) {
   log_info(os, thread)("Thread finished (tid: %zu, pthread id: %zu).",
     os::current_thread_id(), (uintx) pthread_self());
 
-  return 0;
+  return nullptr;
 }
 
 bool os::create_thread(Thread* thread, ThreadType thr_type,
@@ -823,29 +807,6 @@ void os::free_thread(OSThread* osthread) {
 // time support
 
 #ifdef __APPLE__
-double os::Machine::elapsed_system_cpu_time() {
-  mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
-  host_cpu_load_info_data_t load_data;
-
-  kern_return_t ret = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, (host_info_t)&load_data, &count);
-  if (ret != KERN_SUCCESS) {
-    assert(false, "This should never happen");
-    return 0.0;
-  }
-
-  natural_t ticks = load_data.cpu_ticks[CPU_STATE_USER] +
-                    load_data.cpu_ticks[CPU_STATE_NICE] +
-                    load_data.cpu_ticks[CPU_STATE_SYSTEM];
-
-  return double(ticks) / CLK_TCK;
-}
-#else
-double os::Machine::elapsed_system_cpu_time() {
-  return 0.0;
-}
-#endif
-
-#ifdef __APPLE__
 void os::Bsd::clock_init() {
   mach_timebase_info(&_timebase_info);
 }
@@ -919,6 +880,90 @@ pid_t os::Bsd::gettid() {
     return getpid();
   }
 }
+
+// Returns the uid of a process or -1 on error.
+uid_t os::Bsd::get_process_uid(pid_t pid) {
+  struct kinfo_proc kp;
+  size_t size = sizeof kp;
+  int mib_kern[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
+  if (sysctl(mib_kern, 4, &kp, &size, nullptr, 0) == 0) {
+    if (size > 0 && kp.kp_proc.p_pid == pid) {
+      return kp.kp_eproc.e_ucred.cr_uid;
+    }
+  }
+  return (uid_t)-1;
+}
+
+// Returns true if the process is running as root.
+bool os::Bsd::is_process_root(pid_t pid) {
+  uid_t uid = get_process_uid(pid);
+  return (uid != (uid_t)-1) ? os::Posix::is_root(uid) : false;
+}
+
+#ifdef __APPLE__
+
+// macOS has a secure per-user temporary directory.
+// Root can attach to a non-root process, hence it needs
+// to lookup /var/folders for the user specific temporary directory
+// of the form /var/folders/*/*/T, that contains PERFDATA_NAME_user
+// directory.
+static const char VAR_FOLDERS[] = "/var/folders/";
+int os::Bsd::get_user_tmp_dir_macos(const char* user, int vmid, char* output_path, int output_size) {
+
+  // read the var/folders directory
+  DIR* varfolders_dir = os::opendir(VAR_FOLDERS);
+  if (varfolders_dir != nullptr) {
+
+    // var/folders directory contains 2-characters subdirectories (buckets)
+    struct dirent* bucket_de;
+
+    // loop until the PERFDATA_NAME_user directory has been found
+    while ((bucket_de = os::readdir(varfolders_dir)) != nullptr) {
+      // skip over files and special "." and ".."
+      if (bucket_de->d_type != DT_DIR || bucket_de->d_name[0] == '.') {
+        continue;
+      }
+      // absolute path to the bucket
+      char bucket[PATH_MAX];
+      int b = os::snprintf(bucket, PATH_MAX, "%s%s/", VAR_FOLDERS, bucket_de->d_name);
+
+      // the total length of the absolute path must not exceed the buffer size
+      if (b >= PATH_MAX || b < 0) {
+        continue;
+      }
+      // each bucket contains next level subdirectories
+      DIR* bucket_dir = os::opendir(bucket);
+      if (bucket_dir == nullptr) {
+        continue;
+      }
+      // read each subdirectory, skipping over regular files
+      struct dirent* subbucket_de;
+      while ((subbucket_de = os::readdir(bucket_dir)) != nullptr) {
+        if (subbucket_de->d_type != DT_DIR || subbucket_de->d_name[0] == '.') {
+          continue;
+        }
+        // If the PERFDATA_NAME_user directory exists in the T subdirectory,
+        // this means the subdirectory is the temporary directory of the user.
+        char perfdata_path[PATH_MAX];
+        int p = os::snprintf(perfdata_path, PATH_MAX, "%s%s/T/%s_%s/", bucket, subbucket_de->d_name, PERFDATA_NAME, user);
+
+        // the total length must not exceed the output buffer size
+        if (p >= PATH_MAX || p < 0) {
+          continue;
+        }
+        // check if the subdirectory exists
+        if (os::file_exists(perfdata_path)) {
+          // the return value of snprintf is not checked for the second time
+          return os::snprintf(output_path, output_size, "%s%s/T", bucket, subbucket_de->d_name);
+        }
+      }
+      os::closedir(bucket_dir);
+    }
+    os::closedir(varfolders_dir);
+  }
+  return -1;
+}
+#endif
 
 intx os::current_thread_id() {
 #ifdef __APPLE__
@@ -1093,6 +1138,8 @@ void *os::Bsd::dlopen_helper(const char *filename, int mode, char *ebuf, int ebu
   fenv_t default_fenv;
   int rtn = fegetenv(&default_fenv);
   assert(rtn == 0, "fegetenv must succeed");
+
+  Events::log_dll_message(nullptr, "Attempting to load shared library %s", filename);
 
   void* result;
   JFR_ONLY(NativeLibraryLoadEvent load_event(filename, &result);)
@@ -1373,7 +1420,7 @@ int os::get_loaded_modules_info(os::LoadedModulesCallbackFunc callback, void *pa
 #elif defined(__APPLE__)
   for (uint32_t i = 1; i < _dyld_image_count(); i++) {
     // Value for top_address is returned as 0 since we don't have any information about module size
-    if (callback(_dyld_get_image_name(i), (address)_dyld_get_image_header(i), (address)0, param)) {
+    if (callback(_dyld_get_image_name(i), (address)_dyld_get_image_header(i), nullptr, param)) {
       return 1;
     }
   }
@@ -1638,6 +1685,9 @@ void os::pd_disclaim_memory(char *addr, size_t bytes) {
 
 size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
   return page_size;
+}
+
+void os::numa_set_thread_affinity(Thread *thread, int node) {
 }
 
 void os::numa_make_global(char *addr, size_t bytes) {
@@ -2335,8 +2385,8 @@ int os::open(const char *path, int oflag, int mode) {
 
     if (ret != -1) {
       if ((st_mode & S_IFMT) == S_IFDIR) {
-        errno = EISDIR;
         ::close(fd);
+        errno = EISDIR;
         return -1;
       }
     } else {

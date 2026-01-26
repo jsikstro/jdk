@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,6 +30,7 @@
 #include "code/vtableStubs.hpp"
 #include "compiler/compileBroker.hpp"
 #include "compiler/disassembler.hpp"
+#include "cppstdlib/cstdlib.hpp"
 #include "interpreter/interpreter.hpp"
 #include "jvm.h"
 #include "jvmtifiles/jvmti.h"
@@ -102,7 +103,6 @@
 #include <fcntl.h>
 #include <io.h>
 #include <process.h>              // For _beginthreadex(), _endthreadex()
-#include <processthreadsapi.h>
 #include <imagehlp.h>             // For os::dll_address_to_function_name
 // for enumerating dll libraries
 #include <vdmdbg.h>
@@ -1247,22 +1247,6 @@ double os::elapsed_process_cpu_time() {
   return user_seconds + kernel_seconds;
 }
 
-double os::Machine::elapsed_system_cpu_time() {
-  FILETIME idle, kernel, user;
-  if (GetSystemTimes(&idle, &kernel, &user) == 0) {
-    assert(false, "this should not fail");
-    return 0.0;
-  }
-
-  // Kernel time includes idle time
-  jlong ticks = windows_to_time_ticks(user) +
-                windows_to_time_ticks(kernel) -
-                windows_to_time_ticks(idle);
-
-  // Ticks are 100 ns
-  return double(ticks) / 1e7;
-}
-
 jlong os::javaTimeMillis() {
   FILETIME wt;
   GetSystemTimeAsFileTime(&wt);
@@ -1756,6 +1740,8 @@ static int _print_module(const char* fname, address base_address,
 // same architecture as Hotspot is running on
 void * os::dll_load(const char *name, char *ebuf, int ebuflen) {
   log_info(os)("attempting shared library load of %s", name);
+  Events::log_dll_message(nullptr, "Attempting to load shared library %s", name);
+
   void* result;
   JFR_ONLY(NativeLibraryLoadEvent load_event(name, &result);)
   result = LoadLibrary(name);
@@ -2836,7 +2822,7 @@ LONG WINAPI topLevelExceptionFilter(struct _EXCEPTION_POINTERS* exceptionInfo) {
         if (cb != nullptr && cb->is_nmethod()) {
           nmethod* nm = cb->as_nmethod();
           frame fr = os::fetch_frame_from_context((void*)exceptionInfo->ContextRecord);
-          address deopt = nm->deopt_handler_begin();
+          address deopt = nm->deopt_handler_entry();
           assert(nm->insts_contains_inclusive(pc), "");
           nm->set_original_pc(&fr, pc);
           // Set pc to handler
@@ -3793,6 +3779,7 @@ size_t os::pd_pretouch_memory(void* first, void* last, size_t page_size) {
   return page_size;
 }
 
+void os::numa_set_thread_affinity(Thread *thread, int node) { }
 void os::numa_make_global(char *addr, size_t bytes)    { }
 void os::numa_make_local(char *addr, size_t bytes, int lgrp_hint)    { }
 size_t os::numa_get_groups_num()                       { return MAX2(numa_node_list_holder.get_count(), 1); }
@@ -4820,8 +4807,8 @@ int os::stat(const char *path, struct stat *sbuf) {
     path_to_target = get_path_to_target(wide_path);
     if (path_to_target == nullptr) {
       // it is a symbolic link, but we failed to resolve it
-      errno = ENOENT;
       os::free(wide_path);
+      errno = ENOENT;
       return -1;
     }
   }
@@ -4832,14 +4819,14 @@ int os::stat(const char *path, struct stat *sbuf) {
   // if getting attributes failed, GetLastError should be called immediately after that
   if (!bret) {
     DWORD errcode = ::GetLastError();
+    log_debug(os)("os::stat() failed to GetFileAttributesExW: GetLastError->%lu.", errcode);
+    os::free(wide_path);
+    os::free(path_to_target);
     if (errcode == ERROR_FILE_NOT_FOUND || errcode == ERROR_PATH_NOT_FOUND) {
       errno = ENOENT;
     } else {
       errno = 0;
     }
-    log_debug(os)("os::stat() failed to GetFileAttributesExW: GetLastError->%lu.", errcode);
-    os::free(wide_path);
-    os::free(path_to_target);
     return -1;
   }
 
@@ -5038,8 +5025,8 @@ int os::open(const char *path, int oflag, int mode) {
     path_to_target = get_path_to_target(wide_path);
     if (path_to_target == nullptr) {
       // it is a symbolic link, but we failed to resolve it
-      errno = ENOENT;
       os::free(wide_path);
+      errno = ENOENT;
       return -1;
     }
   }
@@ -5313,6 +5300,7 @@ char* os::realpath(const char* filename, char* outbuf, size_t outbuflen) {
     } else {
       errno = ENAMETOOLONG;
     }
+    ErrnoPreserver ep;
     permit_forbidden_function::free(p); // *not* os::free
   }
   return result;

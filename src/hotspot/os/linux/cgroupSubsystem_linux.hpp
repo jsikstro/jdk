@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -188,7 +188,7 @@ class CachedMetric : public CHeapObj<mtInternal>{
     volatile jlong _next_check_counter;
   public:
     CachedMetric() {
-      _metric = value_unlimited;
+      _metric = static_cast<MetricType>(value_unlimited);
       _next_check_counter = min_jlong;
     }
     bool should_check_metric() {

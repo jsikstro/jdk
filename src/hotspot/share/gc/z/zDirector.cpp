@@ -328,11 +328,11 @@ static bool is_young_small(const ZDirectorStats& stats) {
 static bool is_high_usage(const ZDirectorStats& stats, bool log = false) {
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t max_capacity = stats._heap._current_max_capacity;
+  const size_t heuristic_max_capacity = stats._heap._heuristic_max_capacity;
   const size_t used = stats._heap._used;
-  const size_t free_including_headroom = max_capacity - MIN2(max_capacity, used);
+  const size_t free_including_headroom = heuristic_max_capacity - MIN2(heuristic_max_capacity, used);
   const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, max_capacity);
+  const double free_percent = percent_of(free, heuristic_max_capacity);
 
   if (log) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: %zuMB(%.1f%%)",

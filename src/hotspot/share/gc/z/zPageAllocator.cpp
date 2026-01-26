@@ -1627,7 +1627,6 @@ void ZPageAllocator::heap_resized(size_t selected_capacity) {
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
     // Update committer target capacity
-    // TODO: Increase vs decrease?!
     ZMemoryWorker& mem_worker = partition->memory_worker();
     mem_worker.heap_resized(partition->capacity(), selected_capacity_share);
   }

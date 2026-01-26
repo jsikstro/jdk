@@ -502,7 +502,7 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   // has effectively no effect, while for a multi process deployment, processes
   // that are unproportionately memory bloated compared to other processes will
   // rebalance themselves better to provide more memory for other processes.
-  const double process_cpu_pressure = 1.0 / (1.0 + clamp(process_cpu_usage_ratio - process_memory_usage_ratio, -0.1, 1.0));
+  const double process_cpu_pressure = process_memory_usage_ratio - process_cpu_usage_ratio;
 
   // The GC pressure is scaled by what portion of system CPU resources are being
   // used. As CPU utilization of the machine gets higher, there will be more
@@ -512,11 +512,11 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   // calculation estimates the latency impact of too high CPU, and adjusts.
   const double system_cpu_usage = cpu_metrics._avg_system_load;
   const double system_memory_usage = double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
-  const double system_cpu_pressure = 1.0 / (1.0 + clamp(system_cpu_usage - system_memory_usage, -0.1, 1.0));
+  const double system_cpu_pressure = system_memory_usage - system_cpu_usage;
 
   // Balance the forces of resource share imbalance across processes with the
   // forces of system level resource usage imbalance.
-  const double cpu_vs_memory_pressure = (process_cpu_pressure + system_cpu_pressure) * 0.5;
+  const double cpu_vs_memory_pressure = 1.0 + clamp(process_cpu_pressure + system_cpu_pressure, -0.2, 2.0);
 
   // Make sure that as memory availability drops, memory pressure starts to
   // dominate the overall GC pressure; without memory the JVM dies.
@@ -531,7 +531,7 @@ static double compute_cpu_vs_memory_pressure(const ZMemoryPressureMetrics& mem_m
   }
 
   const double container_cpu_pressure = compute_cpu_vs_memory_pressure(mem_metrics._container, cpu_metrics._container, process_used_memory);
-  return (container_cpu_pressure + machine_cpu_pressure) * 0.5;
+  return ::sqrt(container_cpu_pressure * machine_cpu_pressure);
 }
 
 static double compute_cpu_vs_latency_pressure(const ZSystemCpuPressureMetrics& machine_cpu_metrics) {
@@ -566,7 +566,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   // not on the container level.
   const double container_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._container, machine_cpu_vs_latency_pressure);
 
-  return MIN2(machine_scaled_pressure, container_scaled_pressure);
+  return sqrt(machine_scaled_pressure * container_scaled_pressure);
 }
 
 ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics, size_t projected_process_used_memory) {
@@ -574,7 +574,9 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
   const double mem_pressure = compute_memory_pressure(mem_metrics);
   const double cpu_vs_memory_pressure = compute_cpu_vs_memory_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
   const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(mem_metrics, cpu_metrics);
-  const double cpu_pressure = cpu_vs_memory_pressure * cpu_vs_latency_pressure;
+
+  // Use sqrt to compute geometric mean
+  const double cpu_pressure = ::sqrt(cpu_vs_memory_pressure * cpu_vs_latency_pressure);
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
   const double pressure = mem_pressure * cpu_pressure;

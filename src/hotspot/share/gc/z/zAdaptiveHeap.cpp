@@ -363,7 +363,7 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   const double machine_system_time_now = os::Machine::elapsed_system_cpu_time();
   const double machine_system_time = machine_system_time_now - machine_system_time_last;
 
-  const double machine_ncpus = os::Machine::active_processor_count();
+  const int machine_ncpus = os::Machine::active_processor_count();
 
   double container_system_time_now;
   double container_ncpus;
@@ -512,13 +512,13 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   // heap too much. In fact, then we can conversely increase the heap size
   // so that CPU can decrease a bit, avoiding latency issues due to too high
   // CPU utilization, to some reasonable limit.
-  const double responsive_system_cpu_usage = cpu_metrics._avg_system_load / ZCPUConcerningThreshold;
+  const double responsive_system_cpu_usage = cpu_metrics._avg_system_load / ZCPUConcerningThreshold; // TODO: Compute ZCPUConcerningThreshold?
   const double system_memory_usage = double(mem_metrics._used_memory) / double(mem_metrics._max_memory);
   const double system_cpu_pressure = 1.0 / (1.0 + clamp(responsive_system_cpu_usage - system_memory_usage, -0.1, 1.0));
 
   // Balance the forces of resource share imbalance across processes with the
   // forces of system level resource usage imbalance.
-  const double cpu_vs_memory_pressure = process_cpu_pressure * system_cpu_pressure;
+  const double cpu_vs_memory_pressure = (process_cpu_pressure + system_cpu_pressure) * 0.5;
 
   // Make sure that as memory availability drops, memory pressure starts to
   // dominate the overall GC pressure; without memory the JVM dies.
@@ -576,7 +576,7 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
   const double mem_pressure = compute_memory_pressure(mem_metrics);
   const double cpu_vs_memory_pressure = compute_cpu_vs_memory_pressure(mem_metrics, cpu_metrics, projected_process_used_memory);
   const double cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(mem_metrics, cpu_metrics);
-  const double cpu_pressure = MIN2(cpu_vs_memory_pressure, cpu_vs_latency_pressure);
+  const double cpu_pressure = (cpu_vs_memory_pressure + cpu_vs_latency_pressure) * 0.5;
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
   const double pressure = mem_pressure * cpu_pressure;

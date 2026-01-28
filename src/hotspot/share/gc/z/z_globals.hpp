@@ -37,9 +37,10 @@
   product(double, ZAllocationSpikeTolerance, 2.0,                           \
           "Allocation spike tolerance factor")                              \
                                                                             \
-  product(double, ZGCPressure, 5, MANAGEABLE,                               \
-          "Level of GC pressure, used for automatic heap sizing policies")  \
-          constraint(ZGCPressureConstraintFunc, AfterErgo)                  \
+  product(double, ZGCIntensity, 5, MANAGEABLE,                              \
+          "Level of GC intensity, used for automatic heap sizing "          \
+          "policies to use either more CPU or memory.")                     \
+          constraint(ZGCIntensityConstraintFunc, AfterErgo)                 \
                                                                             \
   product(double, ZFragmentationLimit, 5.0,                                 \
           "Maximum allowed heap fragmentation")                             \

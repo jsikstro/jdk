@@ -41,7 +41,7 @@
 bool ZAdaptiveHeap::_explicit_max_capacity;
 bool ZAdaptiveHeap::_can_adapt;
 bool ZAdaptiveHeap::_initialized;
-TruncatedSeq ZAdaptiveHeap::_gc_pressures;
+TruncatedSeq ZAdaptiveHeap::_gc_intensities;
 
 volatile double ZAdaptiveHeap::_young_to_old_gc_time = 1.0;
 double ZAdaptiveHeap::_accumulated_young_gc_time = 0.0;
@@ -132,7 +132,7 @@ static double cpu_latency_factor(int c, double rho, double unluckyness, int max_
 
 ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   precond(_initialized);
-  const double unscaled_gc_pressure = AtomicAccess::load(&ZGCPressure);
+  const double unscaled_gc_intensity = AtomicAccess::load(&ZGCIntensity);
 
   const physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
 
@@ -200,7 +200,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
       container_high_memory = container_critical_memory * (medium_avoid / near_avoid);
     }
 
-    // Linear increase in pressure up to pressure squared
+    // Linear increase in pressure up to intensity squared
     physical_memory_size_type container_min_memory;
     if (os::Container::memory_soft_limit(container_min_memory) && is_limiting_memory(container_min_memory, machine_max_memory)) {
       container_min_memory = MIN2(container_min_memory, physical_memory_size_type(container_high_memory * (far_avoid / medium_avoid)));
@@ -225,7 +225,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   }
 
   return {
-    unscaled_gc_pressure,
+    unscaled_gc_intensity,
     is_containerized,
     {
       machine_used_memory,
@@ -244,7 +244,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   };
 }
 
-static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics, double unscaled_gc_pressure) {
+static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics, double unscaled_gc_intensity) {
   const physical_memory_size_type available_memory = metrics._max_memory - metrics._used_memory;
 
   // The remaining memory reserve of the machine
@@ -252,7 +252,7 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 
   // A number indicating how much the memory pressure should grow as the
   // memory unavailability grows
-  const double pressure_rate = MAX2(unscaled_gc_pressure, 2.0);
+  const double pressure_rate = MAX2(unscaled_gc_intensity, 2.0);
 
   const double concerning = metrics._concerning_threshold;
   const double high = metrics._high_threshold;
@@ -268,7 +268,7 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 
   if (availability < concerning) {
     // When memory pressure is "concerning", we linearly scale up memory pressure to the
-    // "high" GC pressure (i.e. gc pressure squared).
+    // "high" pressure (i.e. unscaled GC intensity).
     const double progression = 1.0 - (availability - high) / (concerning - high);
     const double pressure_factor = (pressure_rate - 1.0) * progression;
 
@@ -279,13 +279,13 @@ static double system_memory_pressure(const ZSystemMemoryPressureMetrics& metrics
 }
 
 double ZAdaptiveHeap::compute_memory_pressure(const ZMemoryPressureMetrics& metrics) {
-  const double machine_mem_pressure = system_memory_pressure(metrics._machine, metrics._unscaled_gc_pressure);
+  const double machine_mem_pressure = system_memory_pressure(metrics._machine, metrics._unscaled_gc_intensity);
 
   if (!metrics._is_containerized) {
     return machine_mem_pressure;
   }
 
-  const double container_mem_pressure = system_memory_pressure(metrics._container, metrics._unscaled_gc_pressure);
+  const double container_mem_pressure = system_memory_pressure(metrics._container, metrics._unscaled_gc_intensity);
   return MAX2(machine_mem_pressure, container_mem_pressure);
 }
 
@@ -496,7 +496,7 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
 
   const double process_cpu_usage_ratio = cpu_metrics._avg_process_load / cpu_metrics._avg_system_load;
 
-  // The GC pressure is scaled by the relationship of how many of the system's
+  // The GC intensity is scaled by the relationship of how many of the system's
   // used bytes belong to this process compared to how many of the used system
   // CPU ticks belong to this process. For a single application deployment this
   // has effectively no effect, while for a multi process deployment, processes
@@ -504,7 +504,7 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   // rebalance themselves better to provide more memory for other processes.
   const double process_cpu_pressure = process_memory_usage_ratio - process_cpu_usage_ratio;
 
-  // The GC pressure is scaled by what portion of system CPU resources are being
+  // The GC intensity is scaled by what portion of system CPU resources are being
   // used. As CPU utilization of the machine gets higher, there will be more
   // fighting between mutator threads for CPU time, affecting latencies.
   // This concern is ignored here - this heuristic is purely reasoning about
@@ -519,7 +519,7 @@ static double compute_cpu_vs_memory_pressure(const ZSystemMemoryPressureMetrics&
   const double cpu_vs_memory_pressure = 1.0 + clamp(process_cpu_pressure + system_cpu_pressure, -0.2, 2.0);
 
   // Make sure that as memory availability drops, memory pressure starts to
-  // dominate the overall GC pressure; without memory the JVM dies.
+  // dominate the overall GC intensity; without memory the JVM dies.
   return mem_urgency_scaled_cpu_pressure(mem_metrics, cpu_vs_memory_pressure);
 }
 
@@ -552,7 +552,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   const double machine_cpu_vs_latency_pressure = compute_cpu_vs_latency_pressure(cpu_metrics._machine);
 
   // Make sure that as machine memory availability drops, memory pressure starts to
-  // dominate the overall GC pressure; without memory the JVM dies.
+  // dominate the overall GC intensity; without memory the JVM dies.
   const double machine_scaled_pressure = mem_urgency_scaled_cpu_pressure(mem_metrics._machine, machine_cpu_vs_latency_pressure);
 
   if (!mem_metrics._is_containerized && !cpu_metrics._is_containerized) {
@@ -560,7 +560,7 @@ static double compute_cpu_vs_latency_pressure(const ZMemoryPressureMetrics& mem_
   }
 
   // Make sure that as container availability drops, memory pressure starts to
-  // dominate the overall GC pressure; without memory the JVM dies.
+  // dominate the overall GC intensity; without memory the JVM dies.
   // Note that using the machine CPU vs latency pressure here is intentional;
   // the probability of getting placed in a run queue is on machine level,
   // not on the container level.
@@ -579,19 +579,19 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
   const double cpu_pressure = ::sqrt(cpu_vs_memory_pressure * cpu_vs_latency_pressure);
 
   // The combined forces of memory vs CPU. The one force... TO RULE THEM ALL!!
-  const double pressure = mem_pressure * cpu_pressure;
+  const double resource_pressure = mem_pressure * cpu_pressure;
 
-  const double scaled_gc_pressure = mem_metrics._unscaled_gc_pressure * pressure;
-  double gc_pressure;
+  const double scaled_gc_intensity = mem_metrics._unscaled_gc_intensity * resource_pressure;
+  double gc_intensity;
 
   {
     ZLocker<ZLock> locker(_stat_lock);
-    _gc_pressures.add(scaled_gc_pressure);
-    gc_pressure = MAX2(_gc_pressures.avg(), scaled_gc_pressure);
+    _gc_intensities.add(scaled_gc_intensity);
+    gc_intensity = MAX2(_gc_intensities.avg(), scaled_gc_intensity);
   }
 
   return {
-    gc_pressure,
+    gc_intensity,
     cpu_pressure,
     mem_pressure,
     cpu_vs_memory_pressure,
@@ -601,12 +601,12 @@ ZResourcePressure ZAdaptiveHeap::compute_pressures(const ZMemoryPressureMetrics&
 
 static double compute_target_gc_interval(const ZSystemMemoryPressureMetrics& mem_metrics,
                                          const ZSystemCpuPressureMetrics& cpu_metrics,
-                                         const double unscaled_gc_pressure) {
+                                         const double unscaled_gc_intensity) {
   // High GC frequencies lead to extra overheads such as barrier storms
   // Therefore, we add a factor that ensures there is at least some social
   // distancing between GCs, even when the GC overhead is small. The size of
   // the factor scales with the level of load induced on the machine.
-  const double min_fully_loaded_gc_interval = 5.0 / unscaled_gc_pressure;
+  const double min_fully_loaded_gc_interval = 5.0 / unscaled_gc_intensity;
   const double min_gc_interval = min_fully_loaded_gc_interval / 4.0;
   const double target_gc_interval = MAX2(min_gc_interval, cpu_metrics._avg_process_load * min_fully_loaded_gc_interval);
 
@@ -618,7 +618,7 @@ static double compute_target_gc_interval(const ZSystemMemoryPressureMetrics& mem
 static double compute_target_gc_interval(const ZMemoryPressureMetrics& mem_metrics, const ZCpuPressureMetrics& cpu_metrics) {
   const double machine_target_gc_interval = compute_target_gc_interval(mem_metrics._machine,
                                                                        cpu_metrics._machine,
-                                                                       mem_metrics._unscaled_gc_pressure);
+                                                                       mem_metrics._unscaled_gc_intensity);
 
   if (!mem_metrics._is_containerized && !cpu_metrics._is_containerized) {
     return machine_target_gc_interval;
@@ -626,7 +626,7 @@ static double compute_target_gc_interval(const ZMemoryPressureMetrics& mem_metri
 
   const double container_target_gc_interval = compute_target_gc_interval(mem_metrics._container,
                                                                          cpu_metrics._container,
-                                                                         mem_metrics._unscaled_gc_pressure);
+                                                                         mem_metrics._unscaled_gc_intensity);
   return MIN2(machine_target_gc_interval, container_target_gc_interval);
 }
 
@@ -694,26 +694,26 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
 
   // Calculate the GC pressure that scales the rest of the heuristics
   ZResourcePressure pressures = compute_pressures(mem_metrics, cpu_metrics, projected_process_used_memory);
-  const double gc_pressure = pressures._gc_pressure;
+  const double gc_intensity = pressures._gc_intensity;
   const double mem_pressure = pressures._mem_pressure;
   const double avg_time_since_last = cpu_metrics._avg_gc_interval;
 
   // Calculate the heuristic lower bound for the heuristic heap
   const double alloc_rate = heap_metrics->_alloc_rate;
   // Since a GC cycle is obviously round, we can estimate the minimum bytes due to
-  // a particular allocation rate and GC pressure by calculating GC pressure * pi.
-  const double alloc_rate_scaling = warmness_squared / (gc_pressure * M_PI);
+  // a particular allocation rate and GC intensity by calculating GC intensity * pi.
+  const double alloc_rate_scaling = warmness_squared / (gc_intensity * M_PI);
   const size_t heuristic_low = align_down(size_t(double(MAX2(size_t(double(used) * 1.1), size_t(alloc_rate * alloc_rate_scaling))) / mem_pressure), ZGranuleSize);
 
   const size_t upper_bound = MIN2(soft_max_capacity, current_max_capacity);
   const size_t lower_bound = clamp(heuristic_low, min_capacity, upper_bound);
 
-  // When GC pressure is 10, the implication is that we want 25% of the
+  // When GC intensity is 10, the implication is that we want 25% of the
   // process CPU to be spent on doing GC when the process uses 100% of the
   // available CPU cores.. The ConcGCThreads sizing by default goes up to
   // a maximum of 25% of the available cores. So all ConcGCThreads would
   // be running back to back then.
-  const double target_cpu_overhead = gc_pressure / 40.0;
+  const double target_cpu_overhead = gc_intensity / 40.0;
 
   // Save some breadcrumbs to the director to not use more conc GC threads
   // than we need to run back to back GC at the target GC CPU overhead limit.
@@ -797,8 +797,8 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
                         cpu_pressure, mem_pressure);
     log_debug(gc, heap)("System CPU vs Memory Pressure: %.1f, System CPU vs Latency Pressure: %.1f",
                         cpu_vs_memory_pressure, cpu_vs_latency_pressure);
-    log_info(gc, heap)("GC Pressure: %.1f, GC Pressure Scaling: %.1f",
-                       gc_pressure, gc_pressure / mem_metrics._unscaled_gc_pressure);
+    log_info(gc, heap)("GC Intensity: %.1f, Resource Pressure Scaling: %.1f",
+                       gc_intensity, gc_intensity / mem_metrics._unscaled_gc_intensity);
 
     log_debug(gc, heap)("GC Interval: %.3fs, Target Minimum: %.3fs",
                         avg_time_since_last, target_gc_interval);

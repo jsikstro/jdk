@@ -141,8 +141,8 @@ void ZArguments::set_heap_size() {
   const bool explicit_max_heap_size =  !FLAG_IS_DEFAULT(MaxHeapSize) ||
                                        !FLAG_IS_DEFAULT(MaxRAMPercentage);
 
-  const bool pressure_was_zero = AtomicAccess::load(&ZGCPressure) == 0.0;
-  const bool ahs_explicitly_disabled = pressure_was_zero || (!ZAdaptWithExplicitMaxCapacity && explicit_max_heap_size);
+  const bool gc_intensity_was_zero = AtomicAccess::load(&ZGCIntensity) == 0.0;
+  const bool ahs_explicitly_disabled = gc_intensity_was_zero || (!ZAdaptWithExplicitMaxCapacity && explicit_max_heap_size);
 
   if (ahs_explicitly_disabled) {
     // Let the shared code setup the set the heap size
@@ -180,13 +180,13 @@ void ZArguments::set_heap_size() {
     // After setting the heap size we may have ended up with a configuration
     // which we cannot adapt.
 
-    if (!pressure_was_zero) {
-      if (FLAG_IS_CMDLINE(ZGCPressure)) {
-        log_warning(gc)("Heap size is fixed, but ZGCPressure is modified. "
+    if (!gc_intensity_was_zero) {
+      if (FLAG_IS_CMDLINE(ZGCIntensity)) {
+        log_warning(gc)("Heap size is fixed, but ZGCIntensity is set. "
                         "Adaptive heap sizing is not available.");
       }
-      // If the heap size is fixed, set ZGCPressure to 0.0
-      FLAG_SET_ERGO(ZGCPressure, 0.0);
+      // If the heap size is fixed, set ZGCIntensity to 0.0
+      FLAG_SET_ERGO(ZGCIntensity, 0.0);
     }
   }
 

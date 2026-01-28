@@ -27,7 +27,7 @@
 #include "gc/z/zAdaptiveHeap.inline.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 
-JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
+JVMFlag::Error ZGCIntensityConstraintFunc(double value, bool verbose) {
   if (!UseZGC) {
     // There is no constraint when not using ZGC.
     return JVMFlag::Error::SUCCESS;
@@ -35,7 +35,7 @@ JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
 
   if (value < 0.0) {
     JVMFlag::printError(verbose,
-                        "ZGCPressureConstraint (%f) must be greater than "
+                        "ZGCIntensityConstraint (%f) must be greater than "
                         "or equal to 0.0.\n",
                         value);
     return JVMFlag::Error::VIOLATES_CONSTRAINT;
@@ -43,13 +43,13 @@ JVMFlag::Error ZGCPressureConstraintFunc(double value, bool verbose) {
 
   if (ZAdaptiveHeap::can_adapt() && value == 0.0) {
     JVMFlag::printError(verbose,
-                        "Cannot dynamically switch ZGCPressure off.\n");
+                        "Cannot dynamically switch ZGCIntensity off.\n");
     return JVMFlag::Error::VIOLATES_CONSTRAINT;
   }
 
   if (!ZAdaptiveHeap::can_adapt() && value != 0.0) {
     JVMFlag::printError(verbose,
-                        "Cannot dynamically switch ZGCPressure on.\n");
+                        "Cannot dynamically switch ZGCIntensity on.\n");
     return JVMFlag::Error::VIOLATES_CONSTRAINT;
   }
 

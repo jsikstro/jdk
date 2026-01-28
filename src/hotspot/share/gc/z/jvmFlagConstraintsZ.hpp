@@ -31,7 +31,7 @@
 #define Z_GC_CONSTRAINTS(f)                                                    \
                                                                                \
   /* Adaptive Heap Sizing Constraints */                                       \
-  f(double, ZGCPressureConstraintFunc)                                         \
+  f(double, ZGCIntensityConstraintFunc)                                        \
   /* */
 
 Z_GC_CONSTRAINTS(DECLARE_CONSTRAINT)

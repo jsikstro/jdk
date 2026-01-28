@@ -113,7 +113,7 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   if (!commit(vmem, 0) || !uncommit(vmem)) {
     if (ZAdaptiveHeap::can_adapt()) {
       ZInitialize::error("Uncommit not supported with the current configuration. "
-                         "Either use -XX:ZGCPressure=0.0 to run without adaptive heap sizing, "
+                         "Either use -XX:ZGCIntensity=0.0 to run without adaptive heap sizing, "
                          "or -XX:-ZUncommit to run adaptive heap sizing without uncommit.");
       return;
     }

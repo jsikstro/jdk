@@ -49,7 +49,7 @@ struct ZSystemMemoryPressureMetrics {
 };
 
 struct ZMemoryPressureMetrics {
-  const double _unscaled_gc_pressure;
+  const double _unscaled_gc_intensity;
   const bool _is_containerized;
   const ZSystemMemoryPressureMetrics _machine;
   const ZSystemMemoryPressureMetrics _container;
@@ -73,7 +73,7 @@ struct ZCpuPressureMetrics {
 };
 
 struct ZResourcePressure {
-  const double _gc_pressure;
+  const double _gc_intensity;
   const double _cpu_pressure;
   const double _mem_pressure;
   const double _cpu_vs_memory_pressure;
@@ -86,7 +86,7 @@ private:
   static bool _explicit_max_capacity;
   static bool _can_adapt;
   static bool _initialized;
-  static TruncatedSeq _gc_pressures;
+  static TruncatedSeq _gc_intensities;
 
   struct ZGenerationOverhead {
     double       _last_machine_system_time;

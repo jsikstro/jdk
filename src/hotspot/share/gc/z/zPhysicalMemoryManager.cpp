@@ -41,6 +41,7 @@
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/init.hpp"
+#include "runtime/java.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
@@ -93,9 +94,6 @@ void ZPhysicalMemoryManager::warn_commit_limits(size_t expected_capacity, size_t
 void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max_capacity) {
   assert(!is_init_completed(), "Invalid state");
 
-  // If uncommit is not explicitly disabled, max capacity is greater than
-  // min capacity, and uncommit is supported by the platform, then uncommit
-  // will be enabled.
   if (!ZUncommit) {
     log_info_p(gc, init)("Uncommit: Disabled");
     return;
@@ -107,19 +105,12 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
     return;
   }
 
-  // Test if uncommit is supported by the operating system by committing
-  // and then uncommitting a granule.
+  // Test if uncommit is supported by the operating system or file system by
+  // committing and then uncommitting a granule.
   const ZVirtualMemory vmem(zoffset(0), ZGranuleSize);
   if (!commit(vmem, 0) || !uncommit(vmem)) {
-    if (ZAdaptiveHeap::can_adapt()) {
-      ZInitialize::error("Uncommit not supported with the current configuration. "
-                         "Either use -XX:ZGCIntensity=0.0 to run without adaptive heap sizing, "
-                         "or -XX:-ZUncommit to run adaptive heap sizing without uncommit.");
-      return;
-    }
-    log_info_p(gc, init)("Uncommit: Implicitly Disabled (Not supported by operating system)");
-    FLAG_SET_ERGO(ZUncommit, false);
-    return;
+    vm_exit_during_initialization("Uncommit not supported with the current configuration. "
+                                  "Use -XX:-ZUncommit to run without uncommit.");
   }
 
   const size_t max_delay_without_overflow = std::numeric_limits<uint64_t>::max() / MILLIUNITS;

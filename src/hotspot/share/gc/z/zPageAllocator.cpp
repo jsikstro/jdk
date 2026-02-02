@@ -971,7 +971,7 @@ size_t ZPartition::commit(size_t size, size_t limit) {
       // Map memory
       map_virtual(vmem, false /* heat */);
 
-      // Heat memory
+      // Heat memory synchronously, not in the ZMemoryWorker thread
       heat_memory(vmem);
 
       to_free.push(vmem);

@@ -138,8 +138,8 @@ void ZArguments::set_heap_size() {
   assert(!FLAG_IS_ERGO(MaxHeapSize), "Who set my heap size ergo?");
   assert(!FLAG_IS_ERGO(MaxRAMPercentage), "Who set my heap size ergo?");
 
-  const bool explicit_max_heap_size =  !FLAG_IS_DEFAULT(MaxHeapSize) ||
-                                       !FLAG_IS_DEFAULT(MaxRAMPercentage);
+  const bool explicit_max_heap_size = !FLAG_IS_DEFAULT(MaxHeapSize) ||
+                                      !FLAG_IS_DEFAULT(MaxRAMPercentage);
 
   const bool gc_intensity_was_zero = AtomicAccess::load(&ZGCIntensity) == 0.0;
   const bool ahs_explicitly_disabled = gc_intensity_was_zero || (!ZAdaptWithExplicitMaxCapacity && explicit_max_heap_size);

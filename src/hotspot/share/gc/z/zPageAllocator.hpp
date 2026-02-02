@@ -178,22 +178,22 @@ class ZPageAllocator {
   friend class ZUncommitter;
 
 private:
-  mutable ZLock               _lock;
-  ZVirtualMemoryManager       _virtual;
-  ZPhysicalMemoryManager      _physical;
-  const size_t                _min_capacity;
-  const size_t                _static_max_capacity;
-  volatile size_t             _heuristic_max_capacity;
-  volatile size_t             _used;
-  volatile size_t             _used_generations[2];
+  mutable ZLock              _lock;
+  ZVirtualMemoryManager      _virtual;
+  ZPhysicalMemoryManager     _physical;
+  const size_t               _min_capacity;
+  const size_t               _static_max_capacity;
+  volatile size_t            _heuristic_max_capacity;
+  volatile size_t            _used;
+  volatile size_t            _used_generations[2];
   struct {
     size_t _used_high;
     size_t _used_low;
-  }                           _collection_stats[2];
-  ZPerNUMA<ZPartition>        _partitions;
-  ZList<ZPageAllocation>      _stalled;
-  mutable ZSafeDelete<ZPage>  _safe_destroy;
-  bool                        _initialized;
+  }                          _collection_stats[2];
+  ZPerNUMA<ZPartition>       _partitions;
+  ZList<ZPageAllocation>     _stalled;
+  mutable ZSafeDelete<ZPage> _safe_destroy;
+  bool                       _initialized;
 
   bool alloc_page_stall(ZPageAllocation* allocation);
   ZPage* alloc_page_inner(ZPageAllocation* allocation, ZPageAllocationAttempt attempt);

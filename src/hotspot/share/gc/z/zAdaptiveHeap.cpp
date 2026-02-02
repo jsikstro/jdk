@@ -1071,7 +1071,7 @@ void ZAdaptiveHeap::print() {
   if (!can_adapt()) {
     status = "Manual";
   } else {
-    if (explicit_max_capacity() || MinHeapSize == DefaultMinHeapSize) {
+    if (explicit_max_capacity() || MinHeapSize != DefaultMinHeapSize) {
       status = "Bounded Automatic";
     } else {
       status = "Automatic";

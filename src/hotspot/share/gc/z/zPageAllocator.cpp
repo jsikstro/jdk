@@ -691,8 +691,8 @@ uint32_t ZPartition::numa_id() const {
 
 size_t ZPartition::available(size_t limit) const {
   assert(_capacity == _used + _claimed + _cache.size(), "Should be consistent"
-          " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
-          _capacity, _used, _claimed, _cache.size());
+         " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
+         _capacity, _used, _claimed, _cache.size());
   assert(limit <= _static_max_capacity, "Invalid limit for partition: %zx > %zx", limit, _static_max_capacity);
   const size_t unavailable = _used + _claimed;
 
@@ -706,8 +706,8 @@ size_t ZPartition::available(size_t limit) const {
 
 size_t ZPartition::available(ZPageAllocationAttempt attempt, size_t limit) const {
   assert(_capacity == _used + _claimed + _cache.size(), "Should be consistent"
-          " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
-          _capacity, _used, _claimed, _cache.size());
+         " _capacity: %zx _used: %zx _claimed: %zx _cache.size(): %zx",
+         _capacity, _used, _claimed, _cache.size());
 
   if (attempt == ZPageAllocationAttempt::initial) {
     return available(limit);

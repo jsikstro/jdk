@@ -100,7 +100,7 @@ ALL_FLAGS(DEFINE_FLAG_MEMBER_SETTER,
   do {                                                                  \
     if (FLAG_IS_DEFAULT(name)) {                                        \
       FLAG_SET_ERGO(name, set_value);                                   \
-    } if (name == check_value) {                                        \
+    } else if (name == check_value) {                                   \
       FLAG_SET_ERGO(name, set_value);                                   \
     }                                                                   \
   } while (0)

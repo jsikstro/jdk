@@ -1552,12 +1552,11 @@ size_t ZPageAllocator::static_max_capacity() const {
 }
 
 size_t ZPageAllocator::dynamic_max_capacity() const {
-  if (ZAdaptiveHeap::explicit_max_capacity()) {
+  if (!ZAdaptiveHeap::can_adapt()) {
     return _static_max_capacity;
   }
 
-  const size_t max = align_down(ZAdaptiveHeap::dynamic_max_memory(), ZGranuleSize);
-  return MAX2(max, _min_capacity);
+  return clamp(align_down(ZAdaptiveHeap::dynamic_max_memory(), ZGranuleSize), _min_capacity, _static_max_capacity);
 }
 
 size_t ZPageAllocator::current_max_capacity() const {

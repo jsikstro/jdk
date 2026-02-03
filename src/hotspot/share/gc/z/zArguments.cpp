@@ -160,9 +160,6 @@ void ZArguments::set_heap_size() {
     if (!FLAG_IS_DEFAULT(HeapBaseMinAddress)) {
       log_warning(gc, heap, init)("ZGC does not use HeapBaseMinAddress, the value is ignored");
     }
-    if (!FLAG_IS_DEFAULT(MaxVirtMemFraction)) {
-      log_warning(gc, heap, init)("ZGC does not use MaxVirtMemFraction, the value is ignored");
-    }
 
     FLAG_SET_ERGO_IF_DEFAULT(MaxRAM, ZAdaptiveHeap::dynamic_max_memory());
     FLAG_SET_ERGO_IF_DEFAULT(MaxRAMPercentage, ZAdaptiveHeap::DefaultMaxRAMPercentage);

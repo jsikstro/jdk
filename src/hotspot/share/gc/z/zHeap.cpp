@@ -67,7 +67,7 @@ static size_t compute_static_max_capacity() {
   }
 
   // We might need to scale up to most of the underlying machine memory.
-  return MAX2(align_up(ZAdaptiveHeap::static_max_memory(), ZGranuleSize), MinHeapSize);
+  return MAX2(align_down(os::Machine::physical_memory(), ZGranuleSize), MinHeapSize);
 }
 
 ZHeap::ZHeap()

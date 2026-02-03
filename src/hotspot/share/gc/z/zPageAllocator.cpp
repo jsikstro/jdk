@@ -1303,19 +1303,7 @@ void ZPartition::commit_increased_capacity(ZMemoryAllocation* allocation, const 
 
   const ZVirtualMemory to_be_committed_vmem = vmem.last_part(already_committed);
 
-  size_t commit_limit;
-
-  if (ZAdaptiveHeap::explicit_max_capacity()) {
-    // With a user supplied max heap size, everything may be committed.
-    // If it's too much, it's a user error.
-    commit_limit = _static_max_capacity;
-  } else {
-    // With an automatic max capacity, we have to be a bit careful not
-    // to overprovision the machine
-    commit_limit = align_down((curr_max - capacity) * 5 / 4, ZGranuleSize);
-  }
-
-  const size_t allowed_to_commit = MIN2(to_be_committed_vmem.size(), commit_limit);
+  const size_t allowed_to_commit = MIN2(to_be_committed_vmem.size(), curr_max - capacity);
   if (allowed_to_commit == 0) {
     // Out of memory; not allowed to commit more
     allocation->set_committed_capacity(0);
@@ -1556,7 +1544,57 @@ size_t ZPageAllocator::dynamic_max_capacity() const {
     return _static_max_capacity;
   }
 
-  return clamp(align_down(ZAdaptiveHeap::dynamic_max_memory(), ZGranuleSize), _min_capacity, _static_max_capacity);
+  physical_memory_size_type result = os::Machine::physical_memory();
+
+  if (!os::is_containerized()) {
+    return clamp(align_down(size_t(result), ZGranuleSize), _min_capacity, _static_max_capacity);
+  }
+
+  physical_memory_size_type hard_container_limit;
+  if (os::Container::memory_limit(hard_container_limit)) {
+    result = MIN2(result, hard_container_limit);
+  }
+
+  physical_memory_size_type throttle_container_limit;
+  if (os::Container::memory_throttle_limit(throttle_container_limit)) {
+    result = MIN2(result, throttle_container_limit);
+  }
+
+  return clamp(align_down(size_t(result), ZGranuleSize), _min_capacity, _static_max_capacity);
+}
+
+static size_t calculate_system_max_capacity(size_t system_used,
+                                            size_t system_max,
+                                            size_t capacity,
+                                            size_t min_capacity,
+                                            size_t max_capacity) {
+  // It is a bit naive to assume all available memory can be directly turned
+  // into our own heap memory. We need auxiliary GC data structures, and other
+  // processes can also take the memory as we might not be alone. By scaling
+  // the available memory we stay on the pessimistic size, and let the estimated
+  // current max capacity grow gradually as we approach the limits instead.
+  const double near_avoid = (1.0 - ZMemoryCriticalThreshold);
+  const size_t scaled_system_max = size_t(system_max * near_avoid);
+  size_t result;
+
+  // Calculate capacity limits based on availability
+  if (system_used > scaled_system_max) {
+    const size_t overcommitted = system_used - scaled_system_max;
+
+    if (overcommitted > capacity) {
+      return 0;
+    }
+
+    result = capacity - overcommitted;
+  } else {
+    const size_t system_available = scaled_system_max - system_used;
+    const size_t scaled_system_available = size_t(system_available * near_avoid);
+
+    result = capacity + scaled_system_available;
+  }
+
+  // Clamp and align the container max capacity by its legal memory bounds
+  return clamp(align_down(result, ZGranuleSize), min_capacity, max_capacity);
 }
 
 size_t ZPageAllocator::current_max_capacity() const {
@@ -1565,8 +1603,55 @@ size_t ZPageAllocator::current_max_capacity() const {
     return _static_max_capacity;
   }
 
-  // Calculate current max capacity based on machine usage
-  return ZAdaptiveHeap::current_max_capacity(capacity());
+  physical_memory_size_type machine_used_memory;
+
+  if (!os::Machine::used_memory(machine_used_memory)) {
+    return dynamic_max_capacity();
+  }
+
+  const size_t machine_max_memory = size_t(os::Machine::physical_memory());
+
+  const size_t cap = capacity();
+
+  const size_t machine_max_capacity = calculate_system_max_capacity(size_t(machine_used_memory),
+                                                                    machine_max_memory,
+                                                                    cap,
+                                                                    _min_capacity,
+                                                                    _static_max_capacity);
+
+  if (!os::is_containerized()) {
+    return machine_max_capacity;
+  }
+
+  physical_memory_size_type container_max_memory;
+
+  // Keep below the hard memory limit or the OOM killer will get us
+  if (!os::Container::memory_limit(container_max_memory)) {
+    container_max_memory = machine_max_capacity;
+  }
+
+  // Avoid allocating past the throttle limit; the app will become useless here
+  physical_memory_size_type container_high_memory;
+  if (os::Container::memory_throttle_limit(container_high_memory)) {
+    container_max_memory = MIN2(container_max_memory, container_high_memory);
+  }
+
+  physical_memory_size_type container_used_memory;
+
+  if (!os::Container::used_memory(container_used_memory)) {
+    // If we can't measure memory usage in the container, we also can not compare
+    // it to any container limits. Effectively, the JVM is not appropriately
+    // containerized, so use machine max capacity.
+    return machine_max_capacity;
+  }
+
+  const size_t container_max_capacity = calculate_system_max_capacity(size_t(container_used_memory),
+                                                                      container_max_memory,
+                                                                      cap,
+                                                                      _min_capacity,
+                                                                      _static_max_capacity);
+
+  return MIN2(machine_max_capacity, container_max_capacity);
 }
 
 static size_t clamp_to_soft_max_capacity(size_t value) {

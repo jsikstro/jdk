@@ -85,11 +85,6 @@ uint ZAdaptiveHeap::initial_young_worker_cap() {
   return capacity;
 }
 
-static bool is_limiting_memory(physical_memory_size_type container_limit, physical_memory_size_type machine_limit) {
-  physical_memory_size_type unlimited = physical_memory_size_type(int64_t(-1));
-  return container_limit < machine_limit && container_limit != 0;
-}
-
 static double* generate_factorials(uint64_t max) {
   double* result = NEW_C_HEAP_ARRAY(double, max + 1, mtGC);
   result[0] = 1.0;
@@ -182,7 +177,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     physical_memory_size_type container_critical_memory;
 
     // Allocation stalls at critical levels
-    if (os::Container::memory_limit(container_max_memory) && is_limiting_memory(container_max_memory, machine_max_memory)) {
+    if (os::Container::memory_limit(container_max_memory)) {
       has_container_limit = true;
     } else {
       container_max_memory = machine_max_memory;
@@ -190,7 +185,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
 
     // Exponential increase in pressure up to critical
     physical_memory_size_type container_high_memory;
-    if (os::Container::memory_throttle_limit(container_high_memory) && is_limiting_memory(container_high_memory, machine_max_memory)) {
+    if (os::Container::memory_throttle_limit(container_high_memory)) {
       container_max_memory = MIN2(container_max_memory, container_high_memory);
       container_critical_memory = container_max_memory;
       container_high_memory = MIN2(container_high_memory, container_critical_memory) * (medium_avoid / near_avoid);
@@ -202,7 +197,7 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
 
     // Linear increase in pressure up to intensity squared
     physical_memory_size_type container_min_memory;
-    if (os::Container::memory_soft_limit(container_min_memory) && is_limiting_memory(container_min_memory, machine_max_memory)) {
+    if (os::Container::memory_soft_limit(container_min_memory)) {
       container_min_memory = MIN2(container_min_memory, physical_memory_size_type(container_high_memory * (far_avoid / medium_avoid)));
       has_container_limit = true;
     } else {
@@ -980,89 +975,6 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
   }
 
   return delay;
-}
-
-size_t ZAdaptiveHeap::current_max_capacity(size_t capacity) {
-  precond(_initialized);
-  physical_memory_size_type machine_available_memory;
-
-  if (_explicit_max_capacity) {
-    return ZHeap::heap()->static_max_capacity();
-  }
-
-  if (!os::Machine::available_memory(machine_available_memory)) {
-    return dynamic_max_memory();
-  }
-
-  const double near_avoid = (1.0 - ZMemoryCriticalThreshold);
-  physical_memory_size_type machine_max_memory = os::Machine::physical_memory();
-
-  // It is a bit naive to assume all available memory can be directly turned
-  // into our own heap memory. We need auxiliary GC data structures, and other
-  // processes can also take the memory as we might not be alone. By scaling
-  // the available memory we stay on the pessimistic size, and let the estimated
-  // current max capacity grow gradually as we approach the limits instead.
-  const size_t machine_scaled_available_memory = size_t(machine_available_memory * near_avoid);
-  const size_t machine_max_capacity = MIN2(align_down(capacity + machine_scaled_available_memory, ZGranuleSize), size_t(machine_max_memory * near_avoid));
-
-  if (!os::is_containerized()) {
-    return machine_max_capacity;
-  }
-
-  physical_memory_size_type container_max_memory;
-  physical_memory_size_type container_used_memory;
-  if (!os::Container::used_memory(container_used_memory)) {
-    // If we can't measure memory usage in the container, we also can not compare
-    // it to any container limits. Effectively, the JVM is not appropriately
-    // containerized, so use machine max capacity.
-    return machine_max_capacity;
-  }
-
-  physical_memory_size_type container_critical_memory;
-
-  // Keep below the hard memory limit or the OOM killer will get us
-  if (!os::Container::memory_limit(container_max_memory) || !is_limiting_memory(container_max_memory, machine_max_memory)) {
-    container_max_memory = machine_max_capacity;
-  }
-
-  // Avoid allocating past the throttle limit; the app will become useless here
-  physical_memory_size_type container_high_memory;
-  if (os::Container::memory_throttle_limit(container_high_memory) && is_limiting_memory(container_high_memory, machine_max_memory)) {
-    container_max_memory = MIN2(physical_memory_size_type(container_max_memory * near_avoid), container_high_memory);
-    container_critical_memory = container_max_memory;
-  } else {
-    container_critical_memory = near_avoid * container_max_memory;
-  }
-
-  const ssize_t container_available_memory = ssize_t(container_critical_memory) - ssize_t(container_used_memory);
-  const size_t container_scaled_available_memory = container_available_memory >= 0 ? (size_t)(container_available_memory * near_avoid) : 0;
-  const size_t container_max_capacity = align_down(capacity + container_scaled_available_memory, ZGranuleSize);
-
-  return MIN2(machine_max_capacity, container_max_capacity);
-}
-
-size_t ZAdaptiveHeap::dynamic_max_memory() {
-  physical_memory_size_type result = os::Machine::physical_memory();
-
-  if (!os::is_containerized()) {
-    return result;
-  }
-
-  physical_memory_size_type hard_container_limit;
-  if (os::Container::memory_limit(hard_container_limit)) {
-    result = MIN2(result, hard_container_limit);
-  }
-
-  physical_memory_size_type throttle_container_limit;
-  if (os::Container::memory_throttle_limit(throttle_container_limit)) {
-    result = MIN2(result, throttle_container_limit);
-  }
-
-  return (size_t)result;
-}
-
-size_t ZAdaptiveHeap::static_max_memory() {
-  return os::Machine::physical_memory();
 }
 
 void ZAdaptiveHeap::print() {

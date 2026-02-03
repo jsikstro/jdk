@@ -139,13 +139,9 @@ public:
 
   static bool explicit_max_capacity();
   static bool can_adapt();
-  static size_t current_max_capacity(size_t capacity);
 
   static constexpr double DefaultMaxRAMPercentage = 100.;
   static constexpr size_t DefaultMinHeapSize = 2 * M;
-
-  static size_t dynamic_max_memory();
-  static size_t static_max_memory();
 
   static void print();
 };

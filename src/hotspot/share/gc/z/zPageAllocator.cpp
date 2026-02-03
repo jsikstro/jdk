@@ -1626,7 +1626,7 @@ void ZPageAllocator::heap_resized(size_t selected_capacity) {
     // Update per partition heuristic max capacity
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
-    // Update committer target capacity
+    // Update memory worker target capacity
     ZMemoryWorker& mem_worker = partition->memory_worker();
     mem_worker.heap_resized(partition->capacity(), selected_capacity_share);
   }
@@ -1648,7 +1648,7 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
     // Update per partition heuristic max capacity
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
-    // Update committer target capacity
+    // Update memory worker target capacity
     ZMemoryWorker& mem_worker = partition->memory_worker();
     mem_worker.heap_truncated(selected_capacity_share);
   }

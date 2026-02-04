@@ -1206,8 +1206,8 @@ bool ZPartition::prime(ZWorkers* workers, size_t size, size_t limit) {
       return false;
     }
 
-    // We only send a request to heat the primed memory asynchronously if we
-    // shouldn't pre-touch (i.e., pre-heat) it synchronously during startup.
+    // The primed memory should be "heated" asynchronously if it shouldn't be
+    // pre-touched up front during startup.
     const bool async_heat = !AlwaysPreTouch;
 
     map_virtual(vmem, async_heat);

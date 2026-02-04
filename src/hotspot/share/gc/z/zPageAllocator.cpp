@@ -1619,11 +1619,11 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
 void ZPageAllocator::heap_resized(size_t selected_capacity) {
   precond(ZAdaptiveHeap::can_adapt());
 
+  // Update per partition heuristic max capacity
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
     const uint32_t numa_id = partition->numa_id();
 
-    // Update per partition heuristic max capacity
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
     // Update memory worker target capacity
@@ -1636,16 +1636,13 @@ void ZPageAllocator::heap_resized(size_t selected_capacity) {
 }
 
 void ZPageAllocator::heap_truncated(size_t selected_capacity) {
-  if (!ZAdaptiveHeap::can_adapt()) {
-    // ZMemoryWorker are only used with adaptive heap sizing.
-    return;
-  }
+  precond(ZAdaptiveHeap::can_adapt());
 
+  // Update per partition heuristic max capacity
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
     const uint32_t numa_id = partition->numa_id();
 
-    // Update per partition heuristic max capacity
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
 
     // Update memory worker target capacity
@@ -2431,7 +2428,10 @@ void ZPageAllocator::truncate_heuristic_max_after_capacity_decrease() {
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
                     heuristic_max / M, percent_of(heuristic_max, current_max),
                     capacity / M, percent_of(capacity, current_max));
-      heap_truncated(capacity);
+
+      if (ZAdaptiveHeap::can_adapt()) {
+        heap_truncated(capacity);
+      }
     }
     return;
   }

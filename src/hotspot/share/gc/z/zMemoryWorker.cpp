@@ -511,7 +511,7 @@ void ZMemoryWorker::run_thread() {
 
         // Prioritize committing memory if needed
         if (uncommitted == 0 && should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
-          committed += _partition->commit(maybe_commit, target_capacity);
+          committed += _partition->increase_and_commit_capacity(maybe_commit, target_capacity);
           continue;
         }
 

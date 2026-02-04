@@ -87,6 +87,8 @@ private:
   void verify_virtual_memory_association(const ZArray<ZVirtualMemory>* vmems) const NOT_DEBUG_RETURN;
   void verify_memory_allocation_association(const ZMemoryAllocation* allocation) const NOT_DEBUG_RETURN;
 
+  size_t increase_capacity(size_t size, size_t limit);
+
 public:
   ZPartition(uint32_t numa_id,
              ZPageAllocator* page_allocator,
@@ -111,7 +113,6 @@ public:
   size_t available_from_increase_capacity(size_t limit) const;
   size_t available_from_cache(size_t limit) const;
 
-  size_t increase_capacity(size_t size, size_t limit);
   size_t try_increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit);
   void decrease_capacity(size_t size);
 
@@ -126,7 +127,7 @@ public:
   bool claim_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit);
   bool claim_capacity_fast_medium(ZMemoryAllocation* allocation, size_t limit);
 
-  size_t commit(size_t size, size_t limit);
+  size_t increase_and_commit_capacity(size_t size, size_t limit);
 
   void sort_segments_physical(const ZVirtualMemory& vmem);
 

@@ -914,7 +914,7 @@ bool ZPartition::claim_capacity_fast_medium(ZMemoryAllocation* allocation, size_
   return true;
 }
 
-size_t ZPartition::commit(size_t size, size_t limit) {
+size_t ZPartition::increase_and_commit_capacity(size_t size, size_t limit) {
   size_t commit_size;
   {
     ZLocker<ZLock> locker(lock());

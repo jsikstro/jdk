@@ -723,11 +723,10 @@ size_t ZPartition::available(ZPageAllocationAttempt attempt, size_t limit) const
 size_t ZPartition::available_from_increase_capacity(size_t limit) const {
   // Available includes the cache and what we can increase capacity by.
   const size_t available = ZPartition::available(limit);
-
   const size_t cached = _cache.size();
 
   if (available < cached) {
-    // The current allowed available may be bellow what is in the cache
+    // The current allowed available may be below what is in the cache
     return 0;
   }
 
@@ -739,7 +738,7 @@ size_t ZPartition::available_from_cache(size_t limit) const {
   const size_t available = ZPartition::available(limit);
   const size_t cached = _cache.size();
 
-  // The current allowed available may be bellow what is in the cache
+  // The current allowed available may be below what is in the cache
   return MIN2(available, cached);
 }
 

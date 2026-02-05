@@ -2240,7 +2240,6 @@ bool os::compressed_memory(physical_memory_size_type &value) {
 bool os::is_containerized() {
   return false;
 }
-}
 
 bool os::Container::processor_count(double& value) {
   return false;

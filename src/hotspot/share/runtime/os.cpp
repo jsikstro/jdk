@@ -2241,6 +2241,10 @@ bool os::is_containerized() {
   return false;
 }
 
+bool os::Container::elapsed_system_cpu_time(double& value) {
+  return false;
+}
+
 bool os::Container::processor_count(double& value) {
   return false;
 }

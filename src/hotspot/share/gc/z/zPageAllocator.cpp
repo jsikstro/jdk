@@ -2013,8 +2013,8 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
   if (allocation->flags().fast_medium()) {
     return claim_capacity_fast_medium(allocation);
   }
-  const uint32_t start_numa_id = allocation->preferred_partition();
-  const uint32_t start_partition = start_numa_id;
+
+  const uint32_t start_partition = allocation->preferred_partition();
   const uint32_t num_partitions = _partitions.count();
 
   // Round robin soft single-partition claiming
@@ -2038,7 +2038,7 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
     }
   }
 
-  // Hard single-partition claiming - start from lowest capacity partition
+  // Hard single-partition claiming - only try from the lowest capacity partition
   const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
   if (claim_capacity_single_partition(allocation->single_partition_allocation(), lowest_capacity_id, attempt, hard_partition_limit)) {
     return true;
@@ -2062,35 +2062,33 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
 }
 
 bool ZPageAllocator::claim_capacity_fast_medium(ZPageAllocation* allocation) {
-  const uint32_t start_node = allocation->preferred_partition();
-  const uint32_t numa_nodes = ZNUMA::count();
+  const uint32_t start_partition = allocation->preferred_partition();
+  const uint32_t num_partitions = _partitions.count();
 
   // Round robin soft single-partition claiming
   const size_t soft_limit = heuristic_max_capacity();
 
-  const uint32_t num_partitions = _partitions.count();
   uint32_t lowest_capacity_id = num_partitions;
   size_t lowest_capacity = std::numeric_limits<size_t>::max();
 
-  for (uint32_t i = 0; i < numa_nodes; ++i) {
-    const uint32_t numa_id = (start_node + i) % numa_nodes;
-    ZPartition& partition = _partitions.get(numa_id);
+  for (uint32_t i = 0; i < num_partitions; ++i) {
+    const uint32_t partition_id = (start_partition + i) % num_partitions;
+    ZPartition& partition = _partitions.get(partition_id);
     ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
 
-    const size_t soft_partition_limit = ZNUMA::calculate_share(numa_id, soft_limit);
-
+    const size_t soft_partition_limit = ZNUMA::calculate_share(partition_id, soft_limit);
     if (partition.claim_capacity_fast_medium(single_partition_allocation->allocation(), soft_partition_limit)) {
       return true;
     }
 
-    size_t partition_capacity = _partitions.get(numa_id).capacity();
+    size_t partition_capacity = partition.capacity();
     if (partition_capacity < lowest_capacity) {
-      lowest_capacity_id = numa_id;
+      lowest_capacity_id = partition_id;
       lowest_capacity = partition_capacity;
     }
   }
 
-  // Hard single-partition claiming - start from lowest capacity partition
+  // Hard single-partition claiming - only try from the lowest capacity partition
   ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
   const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
   return _partitions.get(lowest_capacity_id).claim_capacity_fast_medium(single_partition_allocation->allocation(), hard_partition_limit);

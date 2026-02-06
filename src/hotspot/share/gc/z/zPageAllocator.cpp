@@ -721,13 +721,9 @@ size_t ZPartition::available(ZPageAllocationAttempt attempt, size_t limit) const
 }
 
 size_t ZPartition::available_from_increase_capacity(size_t limit) const {
+  precond(limit >= _capacity);
   const size_t available = ZPartition::available(limit);
   const size_t cached = _cache.size();
-
-  if (available < cached) {
-    // The current allowed available may be below what is in the cache
-    return 0;
-  }
 
   return available - cached;
 }
@@ -740,9 +736,13 @@ size_t ZPartition::available_from_cache(size_t limit) const {
   return MIN2(available, cached);
 }
 
-size_t ZPartition::increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit) {
+size_t ZPartition::try_increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit) {
   if (attempt == ZPageAllocationAttempt::initial) {
-    return increase_capacity(size, limit);
+    // We should only increase the capacity if the targeted limit is greater
+    // than the already committed memory, i.e., the capacity.
+    return (limit > _capacity)
+        ? increase_capacity(size, limit)
+        : 0;
   }
 
   if (attempt == ZPageAllocationAttempt::retry || attempt == ZPageAllocationAttempt::stall) {
@@ -753,9 +753,7 @@ size_t ZPartition::increase_capacity(size_t size, ZPageAllocationAttempt attempt
 }
 
 size_t ZPartition::increase_capacity(size_t size, size_t limit) {
-  if (_capacity >= limit) {
-    return 0;
-  }
+  assert(limit > _capacity, "Cannot increase capacity. limit: %zu, _capacity: %zu", limit, _capacity);
 
   const size_t available = available_from_increase_capacity(limit);
   const size_t increased = MIN2(size, available);
@@ -823,7 +821,7 @@ void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* alloca
   ZArray<ZVirtualMemory>* const out = allocation->partial_vmems();
 
   // We are guaranteed to succeed the claiming of capacity here
-  assert(available(attempt, limit), "Must be");
+  assert(available(attempt, limit) >= size, "Must be");
 
   // Associate the allocation with this partition.
   allocation->set_partition(this);
@@ -839,7 +837,7 @@ void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* alloca
   }
 
   // Try increase capacity
-  const size_t increased_capacity = increase_capacity(size, attempt, limit);
+  const size_t increased_capacity = try_increase_capacity(size, attempt, limit);
 
   allocation->set_increased_capacity(increased_capacity);
 
@@ -920,6 +918,11 @@ size_t ZPartition::commit(size_t size, size_t limit) {
   size_t commit_size;
   {
     ZLocker<ZLock> locker(lock());
+
+    // We are not increasing capacity, so exit early
+    if (limit <= _capacity) {
+      return 0;
+    }
 
     commit_size = increase_capacity(size, limit);
 

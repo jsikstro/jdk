@@ -111,8 +111,8 @@ public:
   size_t available_from_increase_capacity(size_t limit) const;
   size_t available_from_cache(size_t limit) const;
 
-  size_t increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit);
   size_t increase_capacity(size_t size, size_t limit);
+  size_t try_increase_capacity(size_t size, ZPageAllocationAttempt attempt, size_t limit);
   void decrease_capacity(size_t size);
 
   void increase_used(size_t size);

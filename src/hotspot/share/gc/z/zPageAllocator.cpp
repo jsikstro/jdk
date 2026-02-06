@@ -1582,7 +1582,7 @@ static size_t calculate_system_max_capacity(size_t system_used,
     const size_t overcommitted = system_used - scaled_system_max;
 
     if (overcommitted > capacity) {
-      return 0;
+      return min_capacity;
     }
 
     result = capacity - overcommitted;
@@ -1627,7 +1627,7 @@ size_t ZPageAllocator::current_max_capacity() const {
 
   // Keep below the hard memory limit or the OOM killer will get us
   if (!os::Container::memory_limit(container_max_memory)) {
-    container_max_memory = machine_max_capacity;
+    container_max_memory = machine_max_memory;
   }
 
   // Avoid allocating past the throttle limit; the app will become useless here

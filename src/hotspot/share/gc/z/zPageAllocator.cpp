@@ -968,10 +968,10 @@ size_t ZPartition::commit(size_t size, size_t limit) {
     }
 
     if (vmem.size() != 0) {
-      // Map memory
+      // Map memory. Since this function is called from the ZMemoryWorker,
+      // we heat memory synchronously instead of sending a heating request.
       map_virtual(vmem, false /* heat */);
 
-      // Heat memory synchronously, not in the ZMemoryWorker thread
       heat_memory(vmem);
 
       to_free.push(vmem);
@@ -991,7 +991,7 @@ size_t ZPartition::commit(size_t size, size_t limit) {
     _page_allocator->decrease_used(not_committed);
   }
 
-  // Free the memory
+  // Free the memory, which puts it into the cache
   _page_allocator->free_memory(&to_free);
 
   return total_committed;

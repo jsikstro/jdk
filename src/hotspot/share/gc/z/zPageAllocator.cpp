@@ -1567,7 +1567,7 @@ static size_t calculate_system_max_capacity(size_t system_used,
   // the available memory we stay on the pessimistic size, and let the estimated
   // current max capacity grow gradually as we approach the limits instead.
   const double near_avoid = (1.0 - ZMemoryCriticalThreshold);
-  const size_t scaled_system_max = size_t(system_max * near_avoid);
+  const size_t scaled_system_max = size_t(double(system_max) * near_avoid);
   size_t result;
 
   // Calculate capacity limits based on availability
@@ -1580,7 +1580,7 @@ static size_t calculate_system_max_capacity(size_t system_used,
 
     result = capacity - overcommitted;
   } else {
-    const size_t system_available = scaled_system_max - system_used;
+    const double system_available = double(scaled_system_max - system_used);
     const size_t scaled_system_available = size_t(system_available * near_avoid);
 
     result = capacity + scaled_system_available;

@@ -1290,30 +1290,23 @@ void ZPartition::copy_physical_segments_from_partition(const ZVirtualMemory& at,
 void ZPartition::commit_increased_capacity(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
   assert(allocation->increased_capacity() > 0, "Nothing to commit");
 
-  const size_t curr_max = _page_allocator->current_max_capacity();
-  const size_t capacity = _page_allocator->capacity();
+  const size_t allowed_to_commit = _page_allocator->allowed_to_commit();
 
-  if (capacity > curr_max) {
-    // Not allowed to commit beyond current max capacity; bail
+  if (allowed_to_commit == 0) {
     allocation->set_committed_capacity(0);
     return;
   }
 
   const size_t already_committed = allocation->harvested();
-
   const ZVirtualMemory to_be_committed_vmem = vmem.last_part(already_committed);
 
-  const size_t allowed_to_commit = MIN2(to_be_committed_vmem.size(), curr_max - capacity);
-  if (allowed_to_commit == 0) {
-    // Out of memory; not allowed to commit more
-    allocation->set_committed_capacity(0);
-    return;
-  }
+  const size_t should_commit = MIN2(to_be_committed_vmem.size(), allowed_to_commit);
+  assert(should_commit > 0, "There must be something to commit");
 
-  const ZVirtualMemory allowed_to_commit_vmem = to_be_committed_vmem.first_part(allowed_to_commit);
+  const ZVirtualMemory should_commit_vmem = to_be_committed_vmem.first_part(should_commit);
 
   // Try to commit the uncommitted physical memory
-  const size_t committed = commit_physical(allowed_to_commit_vmem);
+  const size_t committed = commit_physical(should_commit_vmem);
 
   // Keep track of the committed amount
   allocation->set_committed_capacity(committed);
@@ -2322,6 +2315,21 @@ bool ZPageAllocator::commit_and_map_multi_partition(ZMultiPartitionAllocation* m
   cleanup_failed_commit_multi_partition(multi_partition_allocation, vmem);
 
   return false;
+}
+
+size_t ZPageAllocator::allowed_to_commit() {
+  // We only allow committing up to the current max capacity. Even if capacity
+  // may have been allowed to be increased on individual partitions, we may
+  // disallow that capacity to be committed if it turns out that it will put
+  // too much strain on the system.
+  const size_t current_max = current_max_capacity();
+  const size_t capacity = ZPageAllocator::capacity();
+
+  if (capacity > current_max) {
+    return 0;
+  }
+
+  return current_max - capacity;
 }
 
 void ZPageAllocator::commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {

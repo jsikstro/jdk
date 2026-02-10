@@ -413,9 +413,6 @@ ZCpuPressureMetrics ZAdaptiveHeap::cpu_pressure_metrics(ZGenerationId generation
   const double avg_generation_gc_cpu_overhead = avg_gc_time / avg_process_time;
   const double generation_gc_cpu_overhead = gc_time / process_time;
 
-  const double process_machine_cpu_load = clamp((process_time / time_since_last) / machine_ncpus, 0.0, 1.0);
-  const double process_container_cpu_load = clamp((process_time / time_since_last) / container_ncpus, 0.0, 1.0);
-
   const double avg_machine_process_cpu_load = clamp((avg_process_time / avg_time_since_last) / machine_ncpus, 0.0, 1.0);
   const double avg_machine_system_cpu_load = clamp((avg_machine_system_time / avg_time_since_last) / machine_ncpus, 0.0, 1.0);
   const double avg_container_process_cpu_load = clamp((avg_process_time / avg_time_since_last) / container_ncpus, 0.0, 1.0);

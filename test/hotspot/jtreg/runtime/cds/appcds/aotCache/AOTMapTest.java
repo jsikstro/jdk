@@ -136,6 +136,8 @@ public class AOTMapTest {
 }
 
 class AOTMapTestApp {
+    static volatile Object keepalive;
+
     public static void main(String[] args) throws Exception {
         System.out.println("Hello AOTMapTestApp");
         testCustomLoader();
@@ -146,6 +148,7 @@ class AOTMapTestApp {
         URL[] urls = new URL[] {custJar.toURI().toURL()};
         URLClassLoader loader = new URLClassLoader(urls, AOTMapTestApp.class.getClassLoader());
         Class<?> c = loader.loadClass("Hello");
+        keepalive = c;
         System.out.println(c);
     }
 }

@@ -787,6 +787,16 @@ void ZPartition::decrease_used(size_t size) {
   _used -= size;
 }
 
+void ZPartition::increase_claimed(size_t size) {
+  // Update claimed atomically since we have concurrent readers
+  AtomicAccess::add(&_claimed, size);
+}
+
+void ZPartition::decrease_claimed(size_t size) {
+  // Update claimed atomically since we have concurrent readers
+  AtomicAccess::sub(&_claimed, size);
+}
+
 static void pretouch_memory(zoffset start, size_t size) {
   // At this point we know that we have a valid zoffset / zaddress.
   const zaddress zaddr = ZOffset::address(start);

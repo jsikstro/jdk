@@ -119,6 +119,9 @@ public:
   void increase_used(size_t size);
   void decrease_used(size_t size);
 
+  void increase_claimed(size_t size);
+  void decrease_claimed(size_t size);
+
   void heat_memory(const ZVirtualMemory& vmem) const;
 
   void free_memory(const ZVirtualMemory& vmem);

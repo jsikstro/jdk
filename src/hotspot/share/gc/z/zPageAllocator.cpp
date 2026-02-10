@@ -1290,7 +1290,7 @@ void ZPartition::copy_physical_segments_from_partition(const ZVirtualMemory& at,
 void ZPartition::commit_increased_capacity(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
   assert(allocation->increased_capacity() > 0, "Nothing to commit");
 
-  const size_t allowed_to_commit = _page_allocator->allowed_to_commit();
+  const size_t allowed_to_commit = _page_allocator->allowed_to_commit(allocation->increased_capacity());
 
   if (allowed_to_commit == 0) {
     allocation->set_committed_capacity(0);
@@ -2317,7 +2317,7 @@ bool ZPageAllocator::commit_and_map_multi_partition(ZMultiPartitionAllocation* m
   return false;
 }
 
-size_t ZPageAllocator::allowed_to_commit() {
+size_t ZPageAllocator::allowed_to_commit(size_t about_to_commit) {
   // We only allow committing up to the current max capacity. Even if capacity
   // may have been allowed to be increased on individual partitions, we may
   // disallow that capacity to be committed if it turns out that it will put
@@ -2325,11 +2325,13 @@ size_t ZPageAllocator::allowed_to_commit() {
   const size_t current_max = current_max_capacity();
   const size_t capacity = ZPageAllocator::capacity();
 
-  if (capacity > current_max) {
+  const size_t committed_capacity = capacity - about_to_commit;
+
+  if (committed_capacity >= current_max) {
     return 0;
   }
 
-  return current_max - capacity;
+  return current_max - committed_capacity;
 }
 
 void ZPageAllocator::commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {

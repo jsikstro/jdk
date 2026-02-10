@@ -222,7 +222,7 @@ private:
   bool commit_and_map_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);
   bool commit_and_map_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, const ZVirtualMemory& vmem);
 
-  size_t allowed_to_commit();
+  size_t allowed_to_commit(size_t about_to_commit);
 
   void commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem);
   bool commit_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem);

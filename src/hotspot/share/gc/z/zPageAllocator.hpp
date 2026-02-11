@@ -124,7 +124,8 @@ public:
 
   void heat_memory(const ZVirtualMemory& vmem) const;
 
-  void free_memory(const ZVirtualMemory& vmem, bool should_decrease_used);
+  void free_used_memory(const ZVirtualMemory& vmem);
+  void free_claimed_memory(const ZVirtualMemory& vmem);
 
   void claim_from_cache_or_increase_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit);
   bool claim_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit);
@@ -250,7 +251,8 @@ private:
 
   void prepare_memory_for_free(ZPage* page, ZArray<ZVirtualMemory>* vmems);
   void remap_and_defragment(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* vmems_out);
-  void free_memory(ZArray<ZVirtualMemory>* vmems, bool should_decrease_used);
+  void free_used_memory(ZArray<ZVirtualMemory>* vmems);
+  void free_claimed_memory(ZArray<ZVirtualMemory>* vmems);
 
   void satisfy_stalled();
 

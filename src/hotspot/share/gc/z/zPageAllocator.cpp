@@ -816,18 +816,24 @@ void ZPartition::heat_memory(const ZVirtualMemory& vmem) const {
   }
 }
 
-void ZPartition::free_memory(const ZVirtualMemory& vmem, bool should_decrease_used) {
+void ZPartition::free_used_memory(const ZVirtualMemory& vmem) {
   const size_t size = vmem.size();
 
   // Cache the vmem
   _cache.insert(vmem);
 
   // Update accounting
-  if (should_decrease_used) {
-    decrease_used(size);
-  } else {
-    decrease_claimed(size);
-  }
+  decrease_used(size);
+}
+
+void ZPartition::free_claimed_memory(const ZVirtualMemory& vmem) {
+  const size_t size = vmem.size();
+
+  // Cache the vmem
+  _cache.insert(vmem);
+
+  // Update accounting
+  decrease_claimed(size);
 }
 
 void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* allocation, ZPageAllocationAttempt attempt, size_t limit) {
@@ -1004,7 +1010,7 @@ size_t ZPartition::increase_and_commit_capacity(size_t size, size_t limit) {
   }
 
   // Free the memory, which puts it into the cache
-  _page_allocator->free_memory(&to_free, false /* should_decrease_used */);
+  _page_allocator->free_claimed_memory(&to_free);
 
   return total_committed;
 }
@@ -2682,20 +2688,33 @@ void ZPageAllocator::remap_and_defragment(const ZVirtualMemory& vmem, ZArray<ZVi
   }
 }
 
-void ZPageAllocator::free_memory(ZArray<ZVirtualMemory>* vmems, bool should_decrease_used) {
+void ZPageAllocator::free_used_memory(ZArray<ZVirtualMemory>* vmems) {
   ZLocker<ZLock> locker(&_lock);
 
   // Free the vmems
   for (const ZVirtualMemory vmem : *vmems) {
     ZPartition& partition = partition_from_vmem(vmem);
 
-    // Free the vmem
-    partition.free_memory(vmem, should_decrease_used);
+    // Free the used vmem
+    partition.free_used_memory(vmem);
 
     // Keep track of usage
-    if (should_decrease_used) {
-      decrease_used(vmem.size());
-    }
+    decrease_used(vmem.size());
+  }
+
+  // Try satisfy stalled allocations
+  satisfy_stalled();
+}
+
+void ZPageAllocator::free_claimed_memory(ZArray<ZVirtualMemory>* vmems) {
+  ZLocker<ZLock> locker(&_lock);
+
+  // Free the vmems
+  for (const ZVirtualMemory vmem : *vmems) {
+    ZPartition& partition = partition_from_vmem(vmem);
+
+    // Free the claimed vmem
+    partition.free_claimed_memory(vmem);
   }
 
   // Try satisfy stalled allocations
@@ -2806,7 +2825,7 @@ void ZPageAllocator::free_page(ZPage* page) {
   decrease_used_generation(id, size);
 
   // Free the extracted vmems
-  free_memory(&vmems, true /* should_decrease_used */);
+  free_used_memory(&vmems);
 }
 
 void ZPageAllocator::free_pages(ZGenerationId id, const ZArray<ZPage*>* pages) {
@@ -2824,7 +2843,7 @@ void ZPageAllocator::free_pages(ZGenerationId id, const ZArray<ZPage*>* pages) {
   }
 
   // Free the extracted vmems
-  free_memory(&vmems, true /* should_decrease_used */);
+  free_used_memory(&vmems);
 }
 
 void ZPageAllocator::enable_safe_destroy() const {

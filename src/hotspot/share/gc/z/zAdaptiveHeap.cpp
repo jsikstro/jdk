@@ -744,8 +744,23 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   const double lower_smoothened_error = smoothing_function(lower_error_signal, warmness);
   const double lower_correction_factor = lower_smoothened_error + 0.5;
 
-  const size_t upper_suggested_capacity = align_up(size_t(double(heuristic_max_capacity) * upper_correction_factor), ZGranuleSize);
-  const size_t lower_suggested_capacity = align_up(size_t(double(heuristic_max_capacity) * lower_correction_factor), ZGranuleSize);
+  const size_t upper_scaled_capacity = align_up(size_t(double(heuristic_max_capacity) * upper_correction_factor), ZGranuleSize);
+  const size_t lower_scaled_capacity = align_up(size_t(double(heuristic_max_capacity) * lower_correction_factor), ZGranuleSize);
+
+  // Instead of increasing the heap by an aggressive amount, reduce the memory
+  // availability by said amount as we get closer to the current max capacity.
+  // This ensures the heap increase slows down as we approach the max capacity,
+  // similar to when a space ship is docking at a station.
+  const size_t remaining_capacity = capacity >= current_max_capacity ? 0 : current_max_capacity - capacity;
+  const size_t upper_scaled_max_capacity = upper_correction_factor <= 1.0
+    ? upper_scaled_capacity
+    : align_up(heuristic_max_capacity + size_t(double(remaining_capacity) * (upper_correction_factor - 1.0)), ZGranuleSize);
+  const size_t lower_scaled_max_capacity = lower_correction_factor <= 1.0
+    ? lower_scaled_capacity
+    : align_up(heuristic_max_capacity + size_t(double(remaining_capacity) * (lower_correction_factor - 1.0)), ZGranuleSize);
+
+  const size_t upper_suggested_capacity = MIN2(upper_scaled_capacity, upper_scaled_max_capacity);
+  const size_t lower_suggested_capacity = MIN2(lower_scaled_capacity, lower_scaled_max_capacity);
 
   const size_t upper_bounded_capacity = clamp(upper_suggested_capacity, lower_bound, upper_bound);
   const size_t lower_bounded_capacity = clamp(lower_suggested_capacity, lower_bound, upper_bound);

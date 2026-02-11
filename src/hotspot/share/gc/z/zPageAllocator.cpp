@@ -954,10 +954,10 @@ size_t ZPartition::increase_and_commit_capacity(size_t size, size_t limit) {
 
   const size_t claimed_virtual = claim_virtual(commit_size, &vmems);
 
-  assert(claimed_virtual == commit_size, "must succeed");
+  const bool depleted_virtual = claimed_virtual != commit_size;
 
   size_t total_committed = 0;
-  bool commit_failed = false;
+  bool commit_failed = depleted_virtual;
   ZArray<ZVirtualMemory> to_free(vmems.length());
   for (ZVirtualMemory vmem : vmems) {
     if (commit_failed) {

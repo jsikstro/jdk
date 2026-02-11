@@ -195,6 +195,8 @@ class os::Linux {
 
   static void madvise_transparent_huge_pages(void* addr, size_t bytes);
 
+  static bool safe_fault_memory(void* addr, size_t bytes, size_t page_size);
+
   // Stack repair handling
 
   // none present

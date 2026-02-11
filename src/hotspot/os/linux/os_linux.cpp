@@ -56,6 +56,7 @@
 #include "runtime/osInfo.hpp"
 #include "runtime/osThread.hpp"
 #include "runtime/perfMemory.hpp"
+#include "runtime/safefetch.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/threads.hpp"
@@ -3005,6 +3006,36 @@ void os::Linux::madvise_transparent_huge_pages(void* addr, size_t bytes) {
   ::madvise(addr, bytes, MADV_HUGEPAGE);
 }
 
+bool os::Linux::safe_fault_memory(void* addr, size_t bytes, size_t page_size) {
+  const int result = ::madvise(addr, bytes, MADV_POPULATE_WRITE);
+  if (result == 0) {
+    // Success
+    return true;
+  } else if (errno != EINVAL) {
+    // Failed call to madvise for some other reason than EINVAL
+    return false;
+  }
+
+  // If we failed because of EINVAL it might be because MADV_POPULATE_WRITE is
+  // not supported. We then try faulting in the memory using SafeFetch.
+
+  char* const start = (char*)addr;
+  char* const end = start + bytes;
+
+  // Touching a mapping that can't be backed by memory will generate a
+  // SIGBUS. By using SafeFetch32 any SIGBUS will be safely caught and
+  // handled. A fetch is enough to cause backing pages to be allocated.
+  for (char *p = start; p < end; p += page_size) {
+    if (SafeFetch32((int*)p, -1) == -1) {
+      // Failed
+      return false;
+    }
+  }
+
+  // Success
+  return true;
+}
+
 void os::pd_realign_memory(char *addr, size_t bytes, size_t alignment_hint) {
   if (Linux::should_madvise_anonymous_thps() && alignment_hint > vm_page_size()) {
     Linux::madvise_transparent_huge_pages(addr, bytes);
@@ -4197,6 +4228,21 @@ char* os::pd_reserve_memory_special(size_t bytes, size_t alignment, size_t page_
   if (addr != nullptr) {
     if (UseNUMAInterleaving) {
       numa_make_global(addr, bytes);
+    } else {
+      // Large pages are committed during reservation so that they are reserved for us.
+      // However, under special circumstances we might overreserve pages, so we must
+      // also make sure that we can back those pages immediately, not only reserve them.
+      // We do this by faulting in the large pages and associating them with the
+      // virtual memory reservation here.
+      if (!os::Linux::safe_fault_memory(addr, bytes, page_size)) {
+        if (::munmap(addr, bytes) != 0) {
+          ErrnoPreserver ep;
+          log_trace(os, map)("munmap failed: " RANGEFMT " errno=(%s)",
+                             RANGEFMTARGS(addr, bytes),
+                             os::strerror(ep.saved_errno()));
+        }
+        return nullptr;
+      }
     }
   }
 

@@ -1034,6 +1034,31 @@ ZStatMutatorAllocRateStats ZStatMutatorAllocRate::stats() {
   return {_rate.avg(), _rate.predict_next(), _rate.sd(), _sampling_granule};
 }
 
+NumberSeq ZStatSystemMemoryUsage::_highest_usages(0.1 /* alpha */);
+Atomic<double> ZStatSystemMemoryUsage::_memory_stability(0.0);
+Atomic<double> ZStatSystemMemoryUsage::_highest_usage(0.0);
+
+void ZStatSystemMemoryUsage::record_usage(double usage) {
+  double highest = _highest_usage.load_relaxed();
+  if (highest < usage) {
+    // No need to do anything if the CAS fails; then someone else filled in an update value
+    _highest_usage.compare_exchange(highest, usage, memory_order_relaxed);
+  }
+}
+
+double ZStatSystemMemoryUsage::memory_stability() {
+  return _memory_stability.load_relaxed();
+}
+
+void ZStatSystemMemoryUsage::sample_and_collect() {
+  double highest = _highest_usage.exchange(0.0, memory_order_relaxed);
+  if (highest != 0.0) {
+    _highest_usages.add(highest);
+  }
+  double sd = _highest_usages.dsd();
+  _memory_stability.store_relaxed(sd);
+}
+
 //
 // Stat thread
 //
@@ -1055,6 +1080,9 @@ void ZStat::sample_and_collect(ZStatSamplerHistory* history) const {
     ZStatSamplerHistory& sampler_history = history[sampler->id()];
     sampler_history.add(sampler->collect_and_reset());
   }
+
+  // Sample machine memory usage
+  ZStatSystemMemoryUsage::sample_and_collect();
 }
 
 bool ZStat::should_print(LogTargetHandle log) const {

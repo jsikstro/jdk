@@ -154,7 +154,14 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
   //    free lunch as it leads to page faults that compress and decompress memory.
   //    This is extra painful for a tracing GC to traverse.
   const double machine_compression_rate = double(machine_compressed_memory) / double(machine_max_memory);
-  const double machine_concerning_threshold = MIN2(ZMemoryConcerningThreshold + machine_compression_rate, 1.0);
+
+  // When the machine memory usage is fluctuating and isn't stable, it's good to
+  // increase the headroom to the memory limits, otherwise there is a higher risk
+  // of an allocation stall.
+  const double memory_instability = ZStatSystemMemoryUsage::memory_stability();
+
+  const double memory_uncertainty = MAX2(memory_instability, machine_compression_rate);
+  const double machine_concerning_threshold = MIN2(ZMemoryConcerningThreshold + memory_uncertainty, 1.0);
 
   const double machine_concerning_vs_high_diff = ZMemoryConcerningThreshold - ZMemoryHighThreshold;
   const double machine_high_threshold = machine_concerning_threshold - machine_concerning_vs_high_diff;
@@ -218,6 +225,16 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     container_high_threshold = machine_high_threshold;
     container_critical_threshold = machine_critical_threshold;
   }
+
+  // Record sampled memory usage so we can measure memory stability
+  const double machine_usage = double(machine_used_memory) / double(machine_max_memory);
+  double highest_usage = machine_usage;
+  if (is_containerized) {
+    const double container_usage = double(container_used_memory) / double(container_max_memory);
+    highest_usage = MAX2(machine_usage, container_usage);
+  }
+
+  ZStatSystemMemoryUsage::record_usage(highest_usage);
 
   return {
     unscaled_gc_intensity,

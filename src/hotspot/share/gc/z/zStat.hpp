@@ -383,6 +383,21 @@ public:
   static ZStatMutatorAllocRateStats stats();
 };
 
+class ZStatSystemMemoryUsage : public AllStatic {
+private:
+  static NumberSeq _highest_usages;
+  static Atomic<double> _highest_usage;
+  static Atomic<double> _memory_stability;
+
+public:
+  static void record_usage(double usage);
+
+  // Returns 0.0 when memory usage is constant, and increases as memory spikes appear
+  static double memory_stability();
+
+  static void sample_and_collect();
+};
+
 //
 // Stat thread
 //

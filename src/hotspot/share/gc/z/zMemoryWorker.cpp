@@ -26,6 +26,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMemoryWorker.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
@@ -68,6 +69,12 @@ ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
   }
   set_name("ZMemoryWorker#%u", _id);
   create_and_start();
+
+  if (ZNUMA::is_enabled()) {
+    // If NUMA is enabled we set the affinity of the thread to CPUs associated
+    // with the partition that the ZMemoryWorker will work on.
+    os::numa_set_thread_affinity(this, ZNUMA::numa_id_to_node(_id));
+  }
 }
 
 bool ZMemoryWorker::is_stop_requested() {

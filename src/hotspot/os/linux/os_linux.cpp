@@ -4228,7 +4228,9 @@ char* os::pd_reserve_memory_special(size_t bytes, size_t alignment, size_t page_
   if (addr != nullptr) {
     if (UseNUMAInterleaving) {
       numa_make_global(addr, bytes);
-    } else {
+    }
+
+    if (UseZGC) {
       // Large pages are committed during reservation so that they are reserved for us.
       // However, under special circumstances we might overreserve pages, so we must
       // also make sure that we can back those pages immediately, not only reserve them.

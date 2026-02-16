@@ -59,7 +59,9 @@ ZMemoryWorker::ZMemoryWorker(uint32_t id, ZPartition* partition)
     _partition(partition),
     _lock(),
     _heating_requests(),
-    _target_capacity(0),
+    _target_commit_capacity(0),
+    _target_uncommit_capacity(0),
+    _uncommit_request_start(Ticks::now()),
     _stop(false),
     _currently_heating() {
   if (!is_enabled()) {
@@ -97,49 +99,6 @@ size_t ZMemoryWorker::uncommit_granule() {
   return largest_granule;
 }
 
-bool ZMemoryWorker::should_commit(size_t granule, size_t capacity, size_t target_capacity, size_t curr_max_capacity, const ZMemoryPressureMetrics& metrics) {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  if (capacity > target_capacity) {
-    return false;
-  }
-
-  const size_t new_capacity = capacity + granule;
-
-  if (ZAdaptiveHeap::is_memory_pressure_high(metrics)) {
-    // When the pressure is "high", we resort to laziness for committing to ensure that we
-    // are not stepping off a cliff when the memory isn't needed.
-    return false;
-  }
-
-  if (ZAdaptiveHeap::is_memory_pressure_concerning(metrics) &&
-      new_capacity > ZHeap::heap()->heuristic_max_capacity()) {
-    // When memory pressure gets concerning, we don't eagerly commit *past* the heuristic
-    // max heap size, because we might not need it and we want to avoid a ping pong situation.
-    return false;
-  }
-
-  return new_capacity <= target_capacity;
-}
-
-bool ZMemoryWorker::should_uncommit(size_t granule, size_t capacity, size_t target_capacity) {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  if (!ZUncommit) {
-    // Uncommit explicitly disabled; don't uncommit.
-    return false;
-  }
-
-  if (granule > capacity) {
-    // Seems certainly small enough
-    return false;
-  }
-
-  const size_t new_capacity = capacity - granule;
-
-  return new_capacity >= target_capacity;
-}
-
 bool ZMemoryWorker::should_heat() {
   ZLocker<ZConditionLock> locker(&_lock);
   return has_heating_request();
@@ -151,32 +110,25 @@ bool ZMemoryWorker::has_heating_request() {
 
 bool ZMemoryWorker::peek() {
   for (;;) {
+    uint64_t uncommit_delay = ZAdaptiveHeap::uncommit_delay();
+    Ticks now = Ticks::now();
+
     ZLocker<ZConditionLock> locker(&_lock);
     if (_stop) {
       return false;
     }
 
-    if (!is_init_completed()) {
-      // Don't start working until JVM is bootstrapped
-      _lock.wait();
-      continue;
-    }
-
     if (ZAdaptiveHeap::can_adapt()) {
-      const size_t capacity = _partition->capacity();
-      const size_t curr_max_capacity = _partition->current_max_capacity();
-      const size_t target_capacity = MIN2(AtomicAccess::load(&_target_capacity), curr_max_capacity);
-      const size_t maybe_commit = commit_granule(capacity, target_capacity);
-      const size_t maybe_uncommit = uncommit_granule();
-      const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
+      const size_t target_commit_capacity = _target_commit_capacity.load_relaxed();
+      const size_t target_uncommit_capacity = _target_uncommit_capacity.load_relaxed();
 
-      if (should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
-        // At least one granule to commit
+      if (target_commit_capacity != 0) {
+        // Request to commit memory
         return true;
       }
 
-      if (should_uncommit(maybe_uncommit, capacity, target_capacity)) {
-        // At least one granule to uncommit
+      if (has_uncommit_matured(now, uncommit_delay, target_uncommit_capacity)) {
+        // Matured request to uncommit memory
         return true;
       }
     }
@@ -189,133 +141,104 @@ bool ZMemoryWorker::peek() {
   }
 }
 
-size_t ZMemoryWorker::target_capacity() {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  return AtomicAccess::load(&_target_capacity);
+void ZMemoryWorker::stop_heap_resizing() {
+  // Remove requests to increase the capacity
+  ZLocker<ZConditionLock> locker(&_lock);
+  _target_commit_capacity.store_relaxed(0u);
+  _target_uncommit_capacity.store_relaxed(0u);
 }
 
-void ZMemoryWorker::heap_resized(size_t capacity, size_t heuristic_max_capacity) {
+void ZMemoryWorker::request_grow_capacity(size_t requested_capacity) {
   precond(ZAdaptiveHeap::can_adapt());
 
-  if (capacity <= heuristic_max_capacity) {
-    // Heap increases are handled lazily through the director monitoring
-    // This allows growing to be more vigilant and not have to wait for
-    // a GC before growing can commence. Uncommitting though, is less urgent.
-    return;
+  ZLocker<ZConditionLock> locker(&_lock);
+  _target_commit_capacity.store_relaxed(requested_capacity);
+  _target_uncommit_capacity.store_relaxed(0u);
+  _lock.notify_all();
+}
+
+void ZMemoryWorker::request_shrink_capacity(size_t requested_capacity) {
+  precond(ZAdaptiveHeap::can_adapt());
+
+  Ticks now = Ticks::now();
+
+  ZLocker<ZConditionLock> locker(&_lock);
+  _target_uncommit_capacity.store_relaxed(requested_capacity);
+  _target_commit_capacity.store_relaxed(0u);
+  if (_uncommit_request_start.value() == 0) {
+    _uncommit_request_start = now;
   }
+  _lock.notify_all();
+}
 
-  // If the heuristics have said the heap should shrink, and the shrinking
-  // goes below the capacity, then we would like to uncommit a fraction of
-  // that capacity, so that the heap memory usage slowly goes down over time,
-  // converging at a lower capacity.
+void ZMemoryWorker::request_shrink_capacity_granule() {
+  precond(ZAdaptiveHeap::can_adapt());
 
-  // Set up direct uncommit to shrink the heap
-  const size_t target_capacity = AtomicAccess::load(&_target_capacity);
-  const size_t surplus_capacity = capacity - heuristic_max_capacity;
+  Ticks now = Ticks::now();
+
+  ZLocker<ZConditionLock> locker(&_lock);
+  _target_commit_capacity.store_relaxed(0u);
+  if (_uncommit_request_start.value() == 0) {
+    _uncommit_request_start = now;
+  }
+  _lock.notify_all();
+}
+
+void ZMemoryWorker::consume_grow_request(size_t new_capacity) {
+  ZLocker<ZConditionLock> locker(&_lock);
+
+  const size_t target_capacity = _target_uncommit_capacity.load_relaxed();
+
+  if (new_capacity >= target_capacity) {
+    _target_commit_capacity.store_relaxed(0);
+  }
+}
+
+bool ZMemoryWorker::consume_shrink_request(size_t new_capacity, uint64_t uncommit_delay) {
+  ZLocker<ZConditionLock> locker(&_lock);
+
+  // Shrinking request has been satisfied for now.
+  // The director will remind us to shrink more if necessary.
+  const size_t target_capacity = _target_uncommit_capacity.load_relaxed();
 
   if (target_capacity == 0) {
-    // It is fairly easy the first GC...
-    grow_target_capacity(heuristic_max_capacity);
-    return;
+    _uncommit_request_start = Ticks();
+  } else if (new_capacity <= target_capacity) {
+    _uncommit_request_start = Ticks();
+    _target_uncommit_capacity.store_relaxed(0);
   }
 
-  // Uncommit 5% of the surplus at a time for a smooth capacity decline
-  const size_t uncommit_fraction = 20;
-  const size_t uncommit_request = align_up(surplus_capacity / uncommit_fraction, ZGranuleSize);
-
-  if (target_capacity <= uncommit_request) {
-    // Race; ignore uncommitting
-    return;
-  }
-
-  // If the surplus capacity isn't over 5% of the capacity, the point of
-  // uncommitting heuristically seems questionable and might just cause
-  // pointless fluctuation.
-  if (surplus_capacity < capacity / uncommit_fraction) {
-    return;
-  }
-
-  shrink_target_capacity(target_capacity - uncommit_request);
+  // Trigger more urgent uncommitting if necessary
+  return uncommit_delay <= ZAdaptiveHeap::urgent_uncommit_delay();
 }
 
-void ZMemoryWorker::heap_truncated(size_t capacity) {
-  precond(ZAdaptiveHeap::can_adapt());
+bool ZMemoryWorker::has_uncommit_matured(Ticks now, uint64_t uncommit_delay, uint64_t requested_capacity) {
+  if (_uncommit_request_start.value() == 0) {
+    // No current uncommit request.
+    return false;
+  }
 
-  shrink_target_capacity(capacity);
+  const uint64_t elapsed = (now - _uncommit_request_start).milliseconds();
+
+  if (requested_capacity != 0) {
+    // Long term shrinking as requested by a GC should shrink fairly quickly
+    // regardless of memory pressure.
+    return elapsed >= MIN2(uint64_t(10), uncommit_delay);
+  }
+
+  // Short term shrinking as requested by the director should shrink according
+  // to the memory pressure based uncommit delay schedule.
+  return elapsed >= uncommit_delay;
 }
 
-void ZMemoryWorker::grow_target_capacity(size_t target_capacity) {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  const size_t curr_max_capacity = _partition->current_max_capacity();
-  const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
+void ZMemoryWorker::wake_up_if_uncommit_matured() {
+  Ticks now = Ticks::now();
+  const uint64_t uncommit_delay = ZAdaptiveHeap::uncommit_delay();
 
   ZLocker<ZConditionLock> locker(&_lock);
-  if (target_capacity < _target_capacity) {
-    // Doesn't seem to be growing any more
-    return;
-  }
-  AtomicAccess::store(&_target_capacity, target_capacity);
-
-  const size_t capacity = _partition->capacity();
-  target_capacity = MIN2(target_capacity, curr_max_capacity);
-  const size_t granule = commit_granule(capacity, target_capacity);
-
-  if (should_commit(granule, capacity, target_capacity, curr_max_capacity, metrics)) {
-    // At least one granule to commit
+  if (has_uncommit_matured(now, uncommit_delay, _target_uncommit_capacity.load_relaxed())) {
     _lock.notify_all();
   }
-}
-
-void ZMemoryWorker::shrink_target_capacity(size_t target_capacity) {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  ZLocker<ZConditionLock> locker(&_lock);
-  // When ZUncommit is disabled, we shrink the target to at most the capacity.
-  const size_t new_target_capacity = ZUncommit
-      ? target_capacity
-      : MAX2(_target_capacity, _partition->capacity());
-
-  if (new_target_capacity > _target_capacity) {
-    // Doesn't seem to be shrinking any more
-    return;
-  }
-  AtomicAccess::store(&_target_capacity, new_target_capacity);
-
-  const size_t capacity = _partition->capacity();
-  const size_t granule = uncommit_granule();
-
-  if (should_uncommit(granule, capacity, new_target_capacity)) {
-    // At least one granule to commit
-    _lock.notify_all();
-  }
-}
-
-void ZMemoryWorker::critical_shrink_target_capacity() {
-  precond(ZAdaptiveHeap::can_adapt());
-
-  const size_t capacity = _partition->capacity();
-  const size_t granule = uncommit_granule();
-
-  if (granule >= capacity) {
-    // Can't do much about this
-    return;
-  }
-
-  ZLocker<ZConditionLock> locker(&_lock);
-
-  if (_target_capacity == 0 || _target_capacity < capacity) {
-    // Uncommitting already kick started
-    return;
-  }
-
-  const size_t lowered_capacity = capacity - granule;
-
-  AtomicAccess::store(&_target_capacity, lowered_capacity);
-
-  // At least one granule to commit
-  _lock.notify_all();
 }
 
 void ZMemoryWorker::remove_heating_request_range(const ZVirtualMemory& vmem) {
@@ -483,7 +406,26 @@ size_t ZMemoryWorker::process_heating_request() {
   return vmem.size();
 }
 
+void ZMemoryWorker::await_start() {
+  for (;;) {
+    ZLocker<ZConditionLock> locker(&_lock);
+    if (_stop) {
+      return;
+    }
+
+    if (is_init_completed()) {
+      return;
+    }
+
+    // Don't start working until JVM is bootstrapped
+    _lock.wait();
+  }
+}
+
 void ZMemoryWorker::run_thread() {
+  // Wait until started
+  await_start();
+
   for (;;) {
     if (!peek()) {
       // Stop
@@ -493,7 +435,9 @@ void ZMemoryWorker::run_thread() {
     size_t committed = 0;
     size_t uncommitted = 0;
     size_t heated = 0;
-    size_t last_target_capacity = 0;
+    size_t last_target_commit_capacity = 0;
+    size_t last_target_uncommit_capacity = 0;
+    size_t capacity = 0;
 
     for (;;) {
 
@@ -502,37 +446,75 @@ void ZMemoryWorker::run_thread() {
       }
 
       if (ZAdaptiveHeap::can_adapt()) {
-        const size_t capacity = _partition->capacity();
+        capacity = _partition->capacity();
         const size_t curr_max_capacity = _partition->current_max_capacity();
-        const size_t target_capacity = MIN2(AtomicAccess::load(&_target_capacity), curr_max_capacity);
-        const size_t maybe_commit = commit_granule(capacity, target_capacity);
+        const size_t target_commit_capacity = _target_commit_capacity.load_relaxed();
+        const size_t target_uncommit_capacity = _target_uncommit_capacity.load_relaxed();
+        const size_t maybe_commit = commit_granule(capacity, target_commit_capacity);
         const size_t maybe_uncommit = uncommit_granule();
         const ZMemoryPressureMetrics metrics = ZAdaptiveHeap::memory_pressure_metrics();
 
-        if (last_target_capacity != 0 && last_target_capacity != target_capacity) {
-          // Printouts look better when flushing across target capacity changes
+        if (last_target_commit_capacity != 0 && last_target_commit_capacity != target_commit_capacity) {
+          // Printouts look better when flushing across target commit capacity changes
           break;
         }
 
-        last_target_capacity = target_capacity;
-
-        // Prioritize committing memory if needed
-        if (uncommitted == 0 && should_commit(maybe_commit, capacity, target_capacity, curr_max_capacity, metrics)) {
-          committed += _partition->increase_and_commit_capacity(maybe_commit, target_capacity);
-          continue;
+        if (last_target_uncommit_capacity != 0 && last_target_uncommit_capacity != target_uncommit_capacity) {
+          // Printouts look better when flushing across target uncommit capacity changes
+          break;
         }
 
-        // The secondary priority is uncommitting memory if needed
-        if (committed == 0 && should_uncommit(maybe_uncommit, capacity, target_capacity)) {
-          uncommitted += uncommit(maybe_uncommit);
-          continue;
+        last_target_commit_capacity = target_commit_capacity;
+        last_target_uncommit_capacity = target_uncommit_capacity;
+
+        // Prioritize committing memory if requested
+        if (uncommitted == 0 && target_commit_capacity != 0 && target_commit_capacity > capacity) {
+          const size_t processed = _partition->increase_and_commit_capacity(maybe_commit, target_commit_capacity);
+          const size_t new_capacity = capacity + processed;
+
+          committed += processed;
+
+          // Growing request has potentially been satisfied
+          consume_grow_request(new_capacity);
+
+          if (processed > 0) {
+            continue;
+          }
+        }
+
+        // The secondary priority is uncommitting memory if requested
+        bool should_uncommit;
+        const uint64_t uncommit_delay = ZAdaptiveHeap::uncommit_delay();
+        const Ticks now = Ticks::now();
+        {
+          ZLocker<ZConditionLock> locker(&_lock);
+          should_uncommit = committed == 0 && has_uncommit_matured(now, uncommit_delay, target_uncommit_capacity);
+        }
+
+        if (should_uncommit) {
+          const size_t processed = uncommit(maybe_uncommit);
+          const size_t new_capacity = capacity - processed;
+
+          uncommitted += processed;
+
+          if (processed > 0) {
+            if (consume_shrink_request(new_capacity, uncommit_delay)) {
+              request_shrink_capacity_granule();
+            }
+            continue;
+          }
         }
       }
 
       // Last priority is to heat pages to optimize access speed
       if (ZMemoryHeating && should_heat()) {
+        const size_t processed = process_heating_request();
+
         heated += process_heating_request();
-        continue;
+
+        if (processed > 0) {
+          continue;
+        }
       }
 
       break;
@@ -540,60 +522,22 @@ void ZMemoryWorker::run_thread() {
 
     if (committed > 0) {
       log_info(gc, heap)("Memory Worker (%d) Committed: %zuM(%.0f%%)",
-                         _id, committed / M, percent_of(committed, last_target_capacity));
+                         _id, committed / M, percent_of(committed, last_target_commit_capacity));
     }
 
     if (uncommitted > 0) {
       log_info(gc, heap)("Memory Worker (%d) Uncommitted: %zuM(%.0f%%)",
-                         _id, uncommitted / M, percent_of(uncommitted, last_target_capacity));
+                         _id, uncommitted / M, percent_of(uncommitted, last_target_uncommit_capacity));
     }
 
     if (heated > 0) {
       log_info(gc, heap)("Memory Worker (%d) Heated: %zuM(%.0f%%)",
-                         _id, heated / M, percent_of(heated, last_target_capacity));
+                         _id, heated / M, percent_of(heated, capacity));
     }
-  }
-}
-
-bool ZMemoryWorker::throttle_uncommit(Ticks start) {
-  // TLB shootdown can be expensive; make sure the pace of capacity shrinking is slow enough
-  // Linearly scale uncommit speed with uncommit urgency
-
-  for (;;) {
-    const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency();
-
-    uint64_t intended_delay;
-
-    if (uncommit_urgency >= 0.0) {
-      // Critical pressure throttling; react swiftly
-      intended_delay = 500 * uint64_t(1.0 - uncommit_urgency);
-    } else {
-      // Concerning pressure throttling; react slower
-      intended_delay = (ZUncommitDelay * 1000) * (1.0 - -uncommit_urgency) + 500;
-    }
-
-    Ticks end = Ticks::now();
-    Tickspan duration = end - start;
-
-    const uint64_t actual_delay = duration.milliseconds();
-
-    if (actual_delay >= intended_delay) {
-      return uncommit_urgency > 0.0;
-    }
-
-    ZLocker<ZConditionLock> locker(&_lock);
-    if (_stop) {
-      return false;
-    }
-    // Sleep 10 ms at a time, so that increased urgency can be rapidly detected.
-    // This is the pace in which the director sleeps.
-    _lock.wait(10);
   }
 }
 
 size_t ZMemoryWorker::uncommit(size_t to_uncommit) {
-  Ticks start = Ticks::now();
-
   ZArray<ZVirtualMemory> flushed_vmems;
   size_t flushed = 0;
 
@@ -638,14 +582,9 @@ size_t ZMemoryWorker::uncommit(size_t to_uncommit) {
     _partition->decrease_capacity(flushed);
   }
 
-  bool critical = throttle_uncommit(start);
-
-  if (critical) {
-    // Continue critical uncommitting
-    critical_shrink_target_capacity();
+  if (flushed > 0) {
+    _partition->_page_allocator->truncate_heuristic_max_after_capacity_decrease();
   }
-
-  _partition->_page_allocator->truncate_heuristic_max_after_capacity_decrease();
 
   return flushed;
 }

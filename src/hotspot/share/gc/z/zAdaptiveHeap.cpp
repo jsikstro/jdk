@@ -214,6 +214,12 @@ ZMemoryPressureMetrics ZAdaptiveHeap::memory_pressure_metrics() {
     container_critical_threshold = 1.0 - double(container_critical_memory) / double(container_max_memory);
     container_high_threshold = 1.0 - double(container_high_memory) / double(container_max_memory);
     container_concerning_threshold = 1.0 - double(container_min_memory) / double(container_max_memory);
+
+    // Adjust the threshold by how unstable the memory usage in the system is
+    const double instability_adjustment = MIN2(memory_instability, 1.0 - container_concerning_threshold);
+    container_concerning_threshold += instability_adjustment;
+    container_high_threshold += instability_adjustment;
+
   }
 
   bool is_containerized = can_read_container_memory && has_container_limit;
@@ -863,7 +869,19 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* heap_metrics, ZGener
   return heuristic_max_capacity;
 }
 
-static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metrics, size_t capacity) {
+uintptr_t ZAdaptiveHeap::no_uncommit_delay() {
+  return std::numeric_limits<uint64_t>::max();
+}
+
+uintptr_t ZAdaptiveHeap::urgent_uncommit_delay() {
+  return 500;
+}
+
+uintptr_t ZAdaptiveHeap::critical_uncommit_delay() {
+  return 0;
+}
+
+static uintptr_t system_uncommit_delay(const ZSystemMemoryPressureMetrics& metrics, size_t capacity) {
   const size_t available_memory = metrics._max_memory - metrics._used_memory;
 
   const double capacity_fraction = clamp(double(capacity) / double(metrics._used_memory), 0.05, 1.0);
@@ -873,15 +891,17 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
   // If we are critically low on memory, aggressively free up memory
   if (available_fraction <= metrics._critical_threshold) {
-    return 1.0;
+    return ZAdaptiveHeap::critical_uncommit_delay();
   }
 
   // If we aren't low on memory, disable timer based uncommit; let
   // the GC heuristics guide the heap down instead, as part of the
   // natural control system.
   if (available_fraction > metrics._concerning_threshold) {
-    return 0.0;
+    return ZAdaptiveHeap::no_uncommit_delay();
   }
+
+  const uint64_t urgent_delay = ZAdaptiveHeap::urgent_uncommit_delay();
 
   // If we aren't using a high amount memory, uncommit memory rather slowly
   // and let the GC heuristics do most of the heavy lifting
@@ -894,7 +914,7 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
     // Scale the uncommit interval by memory urgency, so the pace of uncommitting
     // ramps up as the machine resources gets exhausted.
-    return -progression * capacity_fraction;
+    return uint64_t((1.0 - progression) * capacity_fraction * (ZUncommitDelay * 1000 - urgent_delay) + urgent_delay);
   }
 
   // We use a policy where the uncommit delay drops off fairly quickly
@@ -908,25 +928,25 @@ static double system_uncommit_urgency(const ZSystemMemoryPressureMetrics& metric
 
   // Scale the uncommit interval by memory urgency, so the pace of uncommitting
   // ramps up as the machine resources gets exhausted.
-  return progression;
+  return uint64_t(urgent_delay * (1.0 - progression));
 }
 
-// The urgency in uncommitting memory. Positive numbers scale from 0 to 1 and are used
-// for emergency situations, while negative numbers are less urgent and represent
-// uncommit throttling when memory levels are only concerning.
-double ZAdaptiveHeap::uncommit_urgency() {
+// How long to wait until it is time to uncommit memory. This goes towards
+// infinity when there is no concerning memory pressure, then from ZUncommitDelay
+// when concerning down to 500 when high, and eventually 0 when critically low.
+uint64_t ZAdaptiveHeap::uncommit_delay() {
   precond(_initialized);
   ZMemoryPressureMetrics metrics = memory_pressure_metrics();
-  size_t capacity = ZHeap::heap()->capacity();
+  const size_t capacity = ZHeap::heap()->capacity();
 
-  double machine_urgency = system_uncommit_urgency(metrics._machine, capacity);
+  const uint64_t machine_uncommit_delay = system_uncommit_delay(metrics._machine, capacity);
 
   if (!metrics._is_containerized) {
-    return machine_urgency;
+    return machine_uncommit_delay;
   }
 
-  double container_urgency = system_uncommit_urgency(metrics._container, capacity);
-  return MAX2(container_urgency, machine_urgency);
+  const uint64_t container_uncommit_delay = system_uncommit_delay(metrics._container, capacity);
+  return MIN2(machine_uncommit_delay, container_uncommit_delay);
 }
 
 uint64_t ZAdaptiveHeap::soft_ref_delay() {

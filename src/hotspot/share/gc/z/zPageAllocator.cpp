@@ -1714,16 +1714,47 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
 void ZPageAllocator::heap_resized(size_t selected_capacity) {
   precond(ZAdaptiveHeap::can_adapt());
 
+  const ZMemoryPressureMetrics mem_pressure = ZAdaptiveHeap::memory_pressure_metrics();
+
   // Update per partition heuristic max capacity
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
+    ZMemoryWorker& mem_worker = partition->memory_worker();
     const uint32_t numa_id = partition->numa_id();
 
-    const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
+    const size_t heuristic_max_capacity = ZNUMA::calculate_share(numa_id, selected_capacity);
+    const size_t capacity = partition->capacity();
 
-    // Update memory worker target capacity
-    ZMemoryWorker& mem_worker = partition->memory_worker();
-    mem_worker.heap_resized(partition->capacity(), selected_capacity_share);
+    if (capacity < heuristic_max_capacity) {
+      // Consider growing the heap if memory pressure isn't too high
+
+      if (ZAdaptiveHeap::is_memory_pressure_high(mem_pressure)) {
+        mem_worker.stop_heap_resizing();
+      } else {
+        mem_worker.request_grow_capacity(heuristic_max_capacity);
+      }
+    } else {
+      // Consider shrinking the heap
+
+      // Set up direct uncommit to shrink the heap
+      const size_t surplus_capacity = capacity - heuristic_max_capacity;
+
+      // Uncommit 5% of the surplus at a time for a smooth capacity decline
+      const size_t uncommit_fraction = 20;
+      const size_t uncommit_request = align_up(surplus_capacity / uncommit_fraction, ZGranuleSize);
+
+      const size_t requested_capacity = capacity - uncommit_request;
+
+      // If the surplus capacity isn't over 5% of the capacity, the point of
+      // uncommitting heuristically seems questionable and might just cause
+      // pointless fluctuation.
+      if (surplus_capacity > capacity / uncommit_fraction) {
+        // Update memory worker target capacity
+        mem_worker.request_shrink_capacity(requested_capacity);
+      } else {
+        mem_worker.stop_heap_resizing();
+      }
+    }
   }
 
   // Complain about misconfigurations
@@ -1736,13 +1767,9 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
   // Update per partition heuristic max capacity
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
-    const uint32_t numa_id = partition->numa_id();
-
-    const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
-
     // Update memory worker target capacity
     ZMemoryWorker& mem_worker = partition->memory_worker();
-    mem_worker.heap_truncated(selected_capacity_share);
+    mem_worker.stop_heap_resizing();
   }
 
   // Complain about misconfigurations
@@ -1750,23 +1777,25 @@ void ZPageAllocator::heap_truncated(size_t selected_capacity) {
 }
 
 void ZPageAllocator::adjust_capacity(size_t used_soon) {
-  const double uncommit_urgency = ZAdaptiveHeap::uncommit_urgency();
-
+  const ZMemoryPressureMetrics mem_pressure = ZAdaptiveHeap::memory_pressure_metrics();
   ZPerNUMAIterator<ZPartition> iter = partition_iterator();
-  for (ZPartition* partition; iter.next(&partition);) {
 
-    if (uncommit_urgency != 0.0) {
-      // Uncommit is urgent, or uncommit delay has changed
-      ZMemoryWorker& mem_worker = partition->memory_worker();
-      mem_worker.critical_shrink_target_capacity();
+  for (ZPartition* partition; iter.next(&partition);) {
+    ZMemoryWorker& mem_worker = partition->memory_worker();
+    const size_t cap = partition->capacity();
+
+    if (ZAdaptiveHeap::is_memory_pressure_high(mem_pressure)) {
+      // When memory usage is high, request uncommitting if possible
+      mem_worker.request_shrink_capacity_granule();
     } else {
+      // When memory pressure is not high, try to commit memory ahead of mutators.
       const uint32_t numa_id = partition->numa_id();
       const size_t used_soon_share = ZNUMA::calculate_share(numa_id, used_soon);
-      ZMemoryWorker& mem_worker = partition->memory_worker();
-      if (used_soon_share > mem_worker.target_capacity()) {
-        mem_worker.grow_target_capacity(used_soon_share);
+      if (used_soon_share > cap) {
+        mem_worker.request_grow_capacity(used_soon_share);
       }
     }
+    mem_worker.wake_up_if_uncommit_matured();
   }
 }
 

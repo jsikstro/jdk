@@ -130,13 +130,21 @@ public:
   static double young_to_old_gc_time();
   static uint initial_young_worker_cap();
 
-  static double uncommit_urgency();
+  // Uncommit support
+  static uintptr_t no_uncommit_delay();
+  static uintptr_t urgent_uncommit_delay();
+  static uintptr_t critical_uncommit_delay();
+  static uintptr_t uncommit_delay();
+
   static uint64_t soft_ref_delay();
+
+  // Memory pressure
   static ZMemoryPressureMetrics memory_pressure_metrics();
   static bool is_memory_pressure_concerning(const ZMemoryPressureMetrics& metrics);
   static bool is_memory_pressure_high(const ZMemoryPressureMetrics& metrics);
   static bool is_memory_pressure_critical(const ZMemoryPressureMetrics& metrics);
 
+  // How adaptive are we?
   static bool explicit_max_capacity();
   static bool can_adapt();
 

@@ -62,21 +62,23 @@ private:
   ZPartition* const   _partition;
   ZConditionLock      _lock;
   ZHeatingRequestTree _heating_requests;
-  volatile size_t     _target_capacity;
+  Atomic<size_t>      _target_commit_capacity;
+  Atomic<size_t>      _target_uncommit_capacity;
+  Ticks               _uncommit_request_start;
   bool                _stop;
   ZVirtualMemory      _currently_heating;
 
+  void await_start();
   bool is_stop_requested();
   size_t commit_granule(size_t capacity, size_t target_capacity);
-  size_t uncommit_granule();
-  bool should_commit(size_t granule, size_t capacity, size_t target_capacity, size_t curr_max_capacity, const ZMemoryPressureMetrics& metrics);
-  bool should_uncommit(size_t granule, size_t capacity, size_t target_capacity);
 
-  bool throttle_uncommit(Ticks start);
   size_t uncommit(size_t to_uncommit);
 
   bool should_heat();
   bool has_heating_request();
+  bool has_uncommit_matured(Ticks now, uint64_t uncommit_delay, size_t requested_capacity);
+  void consume_grow_request(size_t new_capacity);
+  bool consume_shrink_request(size_t new_capacity, uint64_t uncommit_delay);
   void remove_heating_request_range(const ZVirtualMemory& vmem);
   ZVirtualMemory pop_heating_request();
   size_t process_heating_request();
@@ -91,13 +93,15 @@ public:
 
   ZMemoryWorker(uint32_t id, ZPartition* partition);
 
-  void heap_resized(size_t capacity, size_t heuristic_max_capacity);
-  void heap_truncated(size_t capacity);
-  void grow_target_capacity(size_t target_capacity);
-  void shrink_target_capacity(size_t target_capacity);
-  void critical_shrink_target_capacity();
-  size_t target_capacity();
+  // Heap resizing requests
+  void stop_heap_resizing();
+  void request_grow_capacity(size_t requested_capacity);
+  void request_shrink_capacity(size_t requested_capacity);
+  void request_shrink_capacity_granule();
+  void wake_up_if_uncommit_matured();
+  size_t uncommit_granule();
 
+  // Heating requests
   void register_heating_request(const ZVirtualMemory& vmem);
   void remove_heating_request(const ZVirtualMemory& vmem);
 };

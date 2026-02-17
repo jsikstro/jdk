@@ -2049,11 +2049,8 @@ bool ZPageAllocator::claim_capacity_or_stall(ZPageAllocation* allocation, ZPageA
 }
 
 bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocationAttempt attempt) {
-  // Fast medium allocation
-  if (allocation->flags().fast_medium()) {
-    return claim_capacity_fast_medium(allocation);
-  }
-
+  ZSinglePartitionAllocation* const single_partition_allocation = allocation->single_partition_allocation();
+  const bool is_fast_medium = allocation->flags().fast_medium();
   const uint32_t start_partition = allocation->preferred_partition();
   const uint32_t num_partitions = _partitions.count();
 
@@ -2065,9 +2062,13 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
 
   for (uint32_t i = 0; i < num_partitions; ++i) {
     const uint32_t partition_id = (start_partition + i) % num_partitions;
-
     const size_t soft_partition_limit = ZNUMA::calculate_share(partition_id, soft_limit);
-    if (claim_capacity_single_partition(allocation->single_partition_allocation(), partition_id, attempt, soft_partition_limit)) {
+
+    const bool claim_result = is_fast_medium
+        ? claim_capacity_single_partition_fast_medium(single_partition_allocation, partition_id, soft_partition_limit)
+        : claim_capacity_single_partition(single_partition_allocation, partition_id, attempt, soft_partition_limit);
+
+    if (claim_result) {
       return true;
     }
 
@@ -2080,12 +2081,16 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
 
   // Hard single-partition claiming - only try from the lowest capacity partition
   const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
-  if (claim_capacity_single_partition(allocation->single_partition_allocation(), lowest_capacity_id, attempt, hard_partition_limit)) {
+  const bool claim_result = is_fast_medium
+      ? claim_capacity_single_partition_fast_medium(single_partition_allocation, lowest_capacity_id, hard_partition_limit)
+      : claim_capacity_single_partition(single_partition_allocation, lowest_capacity_id, attempt, hard_partition_limit);
+
+  if (claim_result) {
     return true;
   }
 
-  if (!is_multi_partition_allowed(allocation, attempt, _static_max_capacity)) {
-    // Multi-partition claiming is not possible
+  if (is_fast_medium || !is_multi_partition_allowed(allocation, attempt, _static_max_capacity)) {
+    // Multi-partition claiming is not allowed or not possible
     return false;
   }
 
@@ -2101,37 +2106,10 @@ bool ZPageAllocator::claim_capacity(ZPageAllocation* allocation, ZPageAllocation
   return true;
 }
 
-bool ZPageAllocator::claim_capacity_fast_medium(ZPageAllocation* allocation) {
-  const uint32_t start_partition = allocation->preferred_partition();
-  const uint32_t num_partitions = _partitions.count();
+bool ZPageAllocator::claim_capacity_single_partition_fast_medium(ZSinglePartitionAllocation* single_partition_allocation, uint32_t partition_id, size_t capacity_limit) {
+  ZPartition& partition = _partitions.get(partition_id);
 
-  // Round robin soft single-partition claiming
-  const size_t soft_limit = heuristic_max_capacity();
-
-  uint32_t lowest_capacity_id = num_partitions;
-  size_t lowest_capacity = std::numeric_limits<size_t>::max();
-
-  for (uint32_t i = 0; i < num_partitions; ++i) {
-    const uint32_t partition_id = (start_partition + i) % num_partitions;
-    ZPartition& partition = _partitions.get(partition_id);
-    ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
-
-    const size_t soft_partition_limit = ZNUMA::calculate_share(partition_id, soft_limit);
-    if (partition.claim_capacity_fast_medium(single_partition_allocation->allocation(), soft_partition_limit)) {
-      return true;
-    }
-
-    size_t partition_capacity = partition.capacity();
-    if (partition_capacity < lowest_capacity) {
-      lowest_capacity_id = partition_id;
-      lowest_capacity = partition_capacity;
-    }
-  }
-
-  // Hard single-partition claiming - only try from the lowest capacity partition
-  ZSinglePartitionAllocation* single_partition_allocation = allocation->single_partition_allocation();
-  const size_t hard_partition_limit = _partitions.get(lowest_capacity_id).static_max_capacity();
-  return _partitions.get(lowest_capacity_id).claim_capacity_fast_medium(single_partition_allocation->allocation(), hard_partition_limit);
+  return partition.claim_capacity_fast_medium(single_partition_allocation->allocation(), capacity_limit);
 }
 
 bool ZPageAllocator::claim_capacity_single_partition(ZSinglePartitionAllocation* single_partition_allocation, uint32_t partition_id, ZPageAllocationAttempt attempt, size_t capacity_limit) {

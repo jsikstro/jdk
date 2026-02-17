@@ -205,7 +205,7 @@ private:
 
   bool claim_capacity_or_stall(ZPageAllocation* allocation, ZPageAllocationAttempt* attempt);
   bool claim_capacity(ZPageAllocation* allocation, ZPageAllocationAttempt attempt);
-  bool claim_capacity_fast_medium(ZPageAllocation* allocation);
+  bool claim_capacity_single_partition_fast_medium(ZSinglePartitionAllocation* single_partition_allocation, uint32_t partition_id, size_t capacity_limit);
   bool claim_capacity_single_partition(ZSinglePartitionAllocation* single_partition_allocation, uint32_t partition_id, ZPageAllocationAttempt attempt, size_t capacity_limit);
   void claim_capacity_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, uint32_t start_partition, ZPageAllocationAttempt attempt, size_t capacity_limit);
 

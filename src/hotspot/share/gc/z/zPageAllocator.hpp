@@ -43,6 +43,47 @@
 #include "gc/z/zVirtualMemoryManager.hpp"
 #include "utilities/ostream.hpp"
 
+// The ZPageAllocator maintains the memory for the Java heap, represented by the
+// notion of capacity. The capacity is divided among one ore more partitions, which
+// handles a subset of the heap (or the whole heap in case of a single partition).
+//
+// The most important specific terms for capacity that we have are:
+//   - min             Lower bound. The heap must not shrink below this
+//   - capacity        Currently committed capacity
+//   - soft_max        Target limit; heuristics try to stay below this
+//   - heuristic max   Heuristic-derived upper bound used to guide resizing
+//   - current max     The effective maximum currently enfoced; based on system
+//                     memory usage
+//   - dynamic max     Same as static max for non-container. Container limit
+//                     if in container.
+//   - static max      Absolute upper bound configured at startup (never changes).
+//                     This is the same value of -Xmx if set on the command-line.
+//
+ // Notes:
+//   - Layouts below are illustrative. Values may move relative to each other.
+//   - min and static max never change during the program's execution.
+//   - The heap must stay within [min, static max].
+//
+// Not container:
+// LOW <-> HIGH
+//
+//                            soft max      current max
+//                               |               |
+// [--|--------------|-----------|-|-------------|---------]
+//    |              |             |                       |
+//   min          capacity   heuristic max             static max
+//                                                    dynamic max
+//
+// Container:
+// LOW <-> HIGH
+//
+//              soft max
+//     capacity    |     dynamic max             current max
+//        |        |         |                        |
+// [--|---|--------|-|-------|------------------------|----]
+//    |              |                                     |
+//   min       heuristic_max                           static max
+
 class ThreadClosure;
 class ZGeneration;
 class ZMemoryAllocation;

@@ -39,7 +39,7 @@
                                                                             \
   product(double, ZGCIntensity, 5, MANAGEABLE,                              \
           "Level of GC intensity, used for automatic heap sizing "          \
-          "policies to use either more CPU or memory.")                     \
+          "policies to use either more CPU or memory")                      \
           constraint(ZGCIntensityConstraintFunc, AfterErgo)                 \
                                                                             \
   product(double, ZFragmentationLimit, 5.0,                                 \

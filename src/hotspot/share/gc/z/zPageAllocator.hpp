@@ -78,11 +78,11 @@
 // LOW <-> HIGH
 //
 //              soft max
-//     capacity    |     dynamic max             current max
-//        |        |         |                        |
-// [--|---|--------|-|-------|------------------------|----]
-//    |              |                                     |
-//   min       heuristic_max                           static max
+//     capacity    |     current max
+//        |        |         |
+// [--|---|--------|-|-------|----|------------------------]
+//    |              |            |                        |
+//   min       heuristic_max   dynamic max             static max
 
 class ThreadClosure;
 class ZGeneration;

@@ -1604,7 +1604,7 @@ static size_t calculate_system_max_capacity(size_t system_used,
     result = capacity + scaled_system_available;
   }
 
-  // Clamp and align the container max capacity by its legal memory bounds
+  // Clamp and align the max capacity by its legal memory bounds
   return clamp(align_down(result, ZGranuleSize), min_capacity, max_capacity);
 }
 

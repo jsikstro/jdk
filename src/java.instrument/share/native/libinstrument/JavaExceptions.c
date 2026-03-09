@@ -68,9 +68,20 @@ forceFallback(jthrowable potentialException) {
 jboolean
 initializeFallbackError(JNIEnv* jnienv) {
     jplis_assert(isSafeForJNICalls(jnienv));
-    sFallbackInternalError = createInternalError(jnienv, NULL);
+    jthrowable localRef = createInternalError(jnienv, NULL);
+    if (localRef == NULL) {
+      return JNI_FALSE;
+    }
+
+    jthrowable globalRef = (*jnienv)->NewGlobalRef(jnienv, localRef);
+    if (globalRef == NULL) {
+      return JNI_FALSE;
+    }
+
+    sFallbackInternalError = globalRef;
     jplis_assert(isSafeForJNICalls(jnienv));
-    return (sFallbackInternalError != NULL);
+
+    return JNI_TRUE;
 }
 
 

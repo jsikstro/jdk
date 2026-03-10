@@ -2944,6 +2944,18 @@ they're used.
     the configuration of the computer (RAM and CPU). By default, the option
     is disabled and the heap sizes are configured less aggressively.
 
+## Obsolete Java Options
+
+These `java` options are still accepted but ignored, and a warning is issued
+when they're used.
+
+[`--illegal-access=`]{#--illegal-access}*parameter*
+:   Controlled _relaxed strong encapsulation_, as defined in [JEP
+    261](https://openjdk.org/jeps/261#Relaxed-strong-encapsulation).
+    This option was deprecated in JDK 16 by [JEP
+    396](https://openjdk.org/jeps/396) and made obsolete in JDK 17
+    by [JEP 403](https://openjdk.org/jeps/403).
+
 [`-XX:+NeverActAsServerClassMachine`]{#-XX__NeverActAsServerClassMachine}
 :   Enable the "Client VM emulation" mode which only uses the C1 JIT compiler,
     a 32Mb CodeCache and the Serial GC. The maximum amount of memory that the
@@ -2963,18 +2975,6 @@ they're used.
     -XX:{+|-}EnableJVMCI
     -XX:{+|-}UseJVMCICompiler
     ```
-
-## Obsolete Java Options
-
-These `java` options are still accepted but ignored, and a warning is issued
-when they're used.
-
-[`--illegal-access=`]{#--illegal-access}*parameter*
-:   Controlled _relaxed strong encapsulation_, as defined in [JEP
-    261](https://openjdk.org/jeps/261#Relaxed-strong-encapsulation).
-    This option was deprecated in JDK 16 by [JEP
-    396](https://openjdk.org/jeps/396) and made obsolete in JDK 17
-    by [JEP 403](https://openjdk.org/jeps/403).
 
 ## Removed Java Options
 

@@ -34,13 +34,10 @@ inline size_t ZStoreBarrierBuffer::current() const {
   return _current / sizeof(ZStoreBarrierEntry);
 }
 
-inline void ZStoreBarrierBuffer::add(volatile zpointer* p, zpointer prev) {
-  assert(ZBufferStoreBarriers, "Only buffer stores when it is enabled");
+inline void ZStoreBarrierBuffer::flush_if_full() {
   if (_current == 0) {
     flush();
   }
-  _current -= sizeof(ZStoreBarrierEntry);
-  _buffer[current()] = {p, prev};
 }
 
 inline ZStoreBarrierBuffer* ZStoreBarrierBuffer::buffer_for_store(bool heal) {

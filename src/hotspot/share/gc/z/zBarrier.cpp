@@ -251,14 +251,20 @@ zaddress ZBarrier::mark_finalizable_from_old_slow_path(zaddress addr) {
 }
 
 zaddress ZBarrier::heap_store_slow_path(volatile zpointer* p, zaddress addr, zpointer prev, bool heal) {
-  ZStoreBarrierBuffer* buffer = ZStoreBarrierBuffer::buffer_for_store(heal);
 
+  // When we enter the slow-path through the VM and have access to the buffer,
+  // we flush the store barrier buffer if it is full. This needs to be done
+  // because compiled code always enter the slow-path if the buffer is full.
+  // We also perform the store barrier eagerly instead of pushing it onto the
+  // flushed buffer, since entries should only be pushed onto the buffer from
+  // the medium-path in compiled code.
+
+  ZStoreBarrierBuffer* const buffer = ZStoreBarrierBuffer::buffer_for_store(heal);
   if (buffer != nullptr) {
-    // Buffer store barriers whenever possible
-    buffer->add(p, prev);
-  } else {
-    mark_and_remember(p, addr);
+    buffer->flush_if_full();
   }
+
+  mark_and_remember(p, addr);
 
   return addr;
 }

@@ -38,6 +38,9 @@ struct ZStoreBarrierEntry {
   static ByteSize prev_offset();
 };
 
+// The store barrier buffer is exclusively used by compiled code as a way to
+// minimize the number of times needed to enter the VM to handle the slow-path
+// of performing the full store barrier.
 class ZStoreBarrierBuffer : public CHeapObj<mtGC> {
   friend class ZVerify;
 
@@ -89,7 +92,7 @@ public:
   void install_base_pointers();
 
   void flush();
-  void add(volatile zpointer* p, zpointer prev);
+  void flush_if_full();
 
   // Check if p is contained in any store barrier buffer entry in the system
   static bool is_in(volatile zpointer* p);

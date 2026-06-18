@@ -236,6 +236,10 @@ bool CollectedHeap::supports_concurrent_gc_breakpoints() const {
   return false;
 }
 
+bool CollectedHeap::is_in_old_gen(oop obj) const {
+  ShouldNotReachHere();
+}
+
 static bool klass_is_sane(oop object) {
   if (UseCompactObjectHeaders) {
     // With compact headers, we can't safely access the Klass* when

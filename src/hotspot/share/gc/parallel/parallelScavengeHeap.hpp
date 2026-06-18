@@ -194,6 +194,7 @@ public:
 
   // Whether p is in the allocated part of the heap
   bool is_in(const void* p) const override;
+  bool is_in_old_gen(oop obj) const override;
 
   bool is_in_reserved(const void* p) const;
 

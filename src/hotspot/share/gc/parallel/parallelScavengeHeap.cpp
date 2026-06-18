@@ -223,6 +223,10 @@ bool ParallelScavengeHeap::is_in(const void* p) const {
   return young_gen()->is_in(p) || old_gen()->is_in(p);
 }
 
+bool ParallelScavengeHeap::is_in_old_gen(oop obj) const {
+  return !is_in_young(obj);
+}
+
 bool ParallelScavengeHeap::is_in_reserved(const void* p) const {
   return young_gen()->is_in_reserved(p) || old_gen()->is_in_reserved(p);
 }

@@ -810,6 +810,10 @@ bool ShenandoahHeap::is_in(const void* p) const {
   return r->is_trash() && is_concurrent_weak_root_in_progress();
 }
 
+bool ShenandoahHeap::is_in_old_gen(oop obj) const {
+  return mode()->is_generational() ? is_in_old(obj) : is_in(obj);
+}
+
 void ShenandoahHeap::notify_soft_max_changed() {
   if (_uncommit_thread != nullptr) {
     _uncommit_thread->notify_soft_max_changed();

@@ -130,6 +130,10 @@ bool ZCollectedHeap::is_in(const void* p) const {
   return _heap.is_in((uintptr_t)p);
 }
 
+bool ZCollectedHeap::is_in_old_gen(oop obj) const {
+  return _heap.is_old(to_zaddress(obj));
+}
+
 bool ZCollectedHeap::requires_barriers(stackChunkOop obj) const {
   return ZContinuation::requires_barriers(&_heap, obj);
 }

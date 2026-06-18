@@ -628,6 +628,10 @@ bool SerialHeap::requires_barriers(stackChunkOop obj) const {
   return !is_in_young(obj);
 }
 
+bool SerialHeap::is_in_old_gen(oop obj) const {
+  return !is_in_young(obj);
+}
+
 // Returns "TRUE" iff "p" points into the committed areas of the heap.
 bool SerialHeap::is_in(const void* p) const {
   // precondition

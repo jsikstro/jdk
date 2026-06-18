@@ -2152,6 +2152,11 @@ bool G1CollectedHeap::is_in(const void* p) const {
   return is_in_reserved(p) && _hrm.is_available(addr_to_region(p));
 }
 
+bool G1CollectedHeap::is_in_old_gen(oop obj) const {
+  const G1HeapRegion* hr = heap_region_containing(obj);
+  return hr->is_old_or_humongous();
+}
+
 // Iteration functions.
 
 // Iterates an ObjectClosure over all objects within a G1HeapRegion.

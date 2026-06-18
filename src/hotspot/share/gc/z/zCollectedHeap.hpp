@@ -72,6 +72,7 @@ public:
   size_t unused() const override;
 
   bool is_in(const void* p) const override;
+  bool is_in_old_gen(oop obj) const override;
   bool requires_barriers(stackChunkOop obj) const override;
 
   oop array_allocate(Klass* klass, size_t size, int length, bool do_zero, TRAPS) override;

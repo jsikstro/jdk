@@ -113,16 +113,6 @@
 #include "gc/g1/g1HeapRegionManager.hpp"
 #include "gc/g1/g1HeapRegionRemSet.inline.hpp"
 #endif // INCLUDE_G1GC
-#if INCLUDE_PARALLELGC
-#include "gc/parallel/parallelScavengeHeap.inline.hpp"
-#endif // INCLUDE_PARALLELGC
-#if INCLUDE_SERIALGC
-#include "gc/serial/serialHeap.hpp"
-#endif // INCLUDE_SERIALGC
-#if INCLUDE_ZGC
-#include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zHeap.inline.hpp"
-#endif // INCLUDE_ZGC
 #ifdef LINUX
 #include "cgroupSubsystem_linux.hpp"
 #include "os_linux.hpp"
@@ -420,37 +410,7 @@ WB_END
 
 WB_ENTRY(jboolean, WB_isObjectInOldGen(JNIEnv* env, jobject o, jobject obj))
   oop p = JNIHandles::resolve(obj);
-#if INCLUDE_G1GC
-  if (UseG1GC) {
-    G1CollectedHeap* g1h = G1CollectedHeap::heap();
-    const G1HeapRegion* hr = g1h->heap_region_containing(p);
-    return hr->is_old_or_humongous();
-  }
-#endif
-#if INCLUDE_PARALLELGC
-  if (UseParallelGC) {
-    ParallelScavengeHeap* psh = ParallelScavengeHeap::heap();
-    return !psh->is_in_young(p);
-  }
-#endif
-#if INCLUDE_ZGC
-  if (UseZGC) {
-    return ZHeap::heap()->is_old(to_zaddress(p));
-  }
-#endif
-#if INCLUDE_SHENANDOAHGC
-  if (UseShenandoahGC) {
-    ShenandoahHeap* sh = ShenandoahHeap::heap();
-    return sh->mode()->is_generational() ?  sh->is_in_old(p) : sh->is_in(p);
-  }
-#endif
-#if INCLUDE_SERIALGC
-  if (UseSerialGC) {
-    return !SerialHeap::heap()->is_in_young(p);
-  }
-#endif
-  ShouldNotReachHere();
-  return false;
+  return Universe::heap()->is_in_old_gen(p);
 WB_END
 
 WB_ENTRY(jlong, WB_GetObjectSize(JNIEnv* env, jobject o, jobject obj))

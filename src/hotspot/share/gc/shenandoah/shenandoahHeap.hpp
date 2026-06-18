@@ -625,6 +625,7 @@ public:
   // Check the pointer is in active part of Java heap.
   // Use is_in_reserved to check if object is within heap bounds.
   bool is_in(const void* p) const override;
+  bool is_in_old_gen(oop obj) const override;
 
   // Returns true if the given oop belongs to a generation that is actively being collected.
   inline bool is_in_active_generation(oop obj) const;

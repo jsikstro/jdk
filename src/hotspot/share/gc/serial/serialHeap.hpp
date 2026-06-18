@@ -167,6 +167,7 @@ public:
   // in general, so, to prevent their inadvertent use in product jvm's, we
   // restrict their use to assertion checking or verification only.
   bool is_in(const void* p) const override;
+  bool is_in_old_gen(oop obj) const override;
 
   // Returns true if p points into the reserved space for the young generation.
   // Assumes the young gen address range is less than that of the old gen.

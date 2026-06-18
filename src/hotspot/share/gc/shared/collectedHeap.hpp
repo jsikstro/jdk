@@ -287,6 +287,10 @@ protected:
 
   DEBUG_ONLY(bool is_in_or_null(const void* p) const { return p == nullptr || is_in(p); })
 
+  // Returns true if an object is considered part of the old generation for
+  // serviceability and WhiteBox testing.
+  virtual bool is_in_old_gen(oop obj) const;
+
   void set_gc_cause(GCCause::Cause v);
   GCCause::Cause gc_cause() const { return _gc_cause; }
 

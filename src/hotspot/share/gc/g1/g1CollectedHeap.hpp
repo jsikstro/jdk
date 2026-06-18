@@ -1055,6 +1055,7 @@ public:
   void decrement_summary_bytes(size_t bytes);
 
   bool is_in(const void* p) const override;
+  bool is_in_old_gen(oop obj) const override;
 
   // Return "TRUE" iff the given object address is within the collection
   // set. Assumes that the reference points into the heap.

@@ -3720,22 +3720,21 @@ void MacroAssembler::cmpxchg(Register addr, Register expected,
 }
 
 // A generic comparison. Only compares for equality, clobbers rscratch1.
-void MacroAssembler::compare_eq(Register rm, Register rn, enum operand_size size) {
+void MacroAssembler::compare_eq(Register rn, Register rm, enum operand_size size) {
   if (size == xword) {
-    cmp(rm, rn);
+    cmp(rn, rm);
   } else if (size == word) {
-    cmpw(rm, rn);
+    cmpw(rn, rm);
   } else if (size == halfword) {
-    eorw(rscratch1, rm, rn);
+    eorw(rscratch1, rn, rm);
     ands(zr, rscratch1, 0xffff);
   } else if (size == byte) {
-    eorw(rscratch1, rm, rn);
+    eorw(rscratch1, rn, rm);
     ands(zr, rscratch1, 0xff);
   } else {
     ShouldNotReachHere();
   }
 }
-
 
 static bool different(Register a, RegisterOrConstant b, Register c) {
   if (b.is_constant())
